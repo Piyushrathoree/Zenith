@@ -49,10 +49,11 @@ Zenith
     │       ├── core/
     │       │   ├── config.py
     │       │   └── security.py # Password hashing, JWT creation
-    │       ├── crud/
+    │       ├── controllers/
     │       │   └── user.py
     │       ├── db/
     │       │   └── models.py   # User model
+    │       ├── models/
     │       └── messaging/
     │       │   └── producer.py # Publishes `user.registered` event
     │       ├── .env
