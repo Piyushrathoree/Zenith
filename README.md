@@ -45,14 +45,13 @@ Zenith
     │       ├── main.py         # FastAPI entrypoint for User service
     │       ├── api/
     │       │   └── v1/
-    │       │       └── users.py # Endpoints: /register, /login, /me
+    │       │       └── auth.py # Endpoints: /register, /login, /me
     │       ├── core/
     │       │   ├── config.py
-    │       │   └── security.py # Password hashing, JWT creation
-    │       ├── controllers/
-    │       │   └── user.py
+    │       │   └── sso.py # Password hashing, JWT creation
     │       ├── db/
     │       │   └── models.py   # User model
+    │       │   └── session.py  
     │       ├── models/
     │       └── messaging/
     │       │   └── producer.py # Publishes `user.registered` event
