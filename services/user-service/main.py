@@ -8,7 +8,7 @@ from app.api.v1 import auth
 async def lifespan(app: FastAPI):
     await init_db()
     yield
-
+    print("---- mongodb disconnected ----")
 
 app = FastAPI(title="User Service", lifespan=lifespan)
 
