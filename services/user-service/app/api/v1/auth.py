@@ -1,29 +1,26 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from app.core.sso import sso_providers
-from app.core.security import get_hash_password
-from ...schemas.user import User as schema
+from app.core.security import (
+    get_hash_password,
+    verify_password,
+    generate_token,
+)
+from ...schema.user import Register
+from ...schema.user import Login
 from ...db.model import User
-
+from uuid import UUID
+from pydantic import EmailStr
+from ...crud.user import find_or_create_user
 
 router = APIRouter()
 
 
-@router.get("/auth/{provider}/login", name="auth:login")
-async def sso_login(provider: str):
-    """  Redirects the user to the provider's login page.  """
-    if provider not in sso_providers:
-        raise HTTPException(status_code=404, detail="Provider not supported")
-
-    sso_client = sso_providers[provider]
-    return await sso_client.get_login_redirect()
-
-
 @router.post("/auth/register", name="auth:register")
-async def register(user: schema):
+async def register(user: Register):
     """auth route for register user through jwt"""
 
     existing_user = await User.find_one(User.email == user.email)
-    if not existing_user:
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A user with this email already exists.",
@@ -33,16 +30,134 @@ async def register(user: schema):
 
     if not user.avatar_url:
         user.avatar_url = ""
-    
+
+    token = generate_token({"email": user.email})
     new_user = User(
-        name=user.name,
+        full_name=user.name,
         email=user.email,
         password=hashed_password,
         avatar_url=user.avatar_url,
     )
     await new_user.save()
 
-    return {"user": new_user, "message": "user created successfully", "success": "True"}
+    return {
+        "user": new_user,
+        "token": token,
+        "message": "user created successfully",
+        "success": "True",
+    }
 
-@router.post("/auth/login",name="auth:login")
-async def login()
+
+@router.post("/auth/login", name="auth:login")
+async def login(user: Login):
+    """auth route for login"""
+
+    existing_user = await User.find_one(User.email == user.email)
+    if not existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user not found",
+        )
+
+    password = verify_password(user.password, existing_user.password)
+    print(password)
+    if not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="username or password is wrong",
+        )
+
+    token = generate_token({"email": user.email})
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="token not generated",
+        )
+
+    return {
+        "user": existing_user,
+        "token": token,
+        "message": "user created successfully",
+        "success": "True",
+    }
+
+
+@router.get("/auth/{user_id}", name="auth:id")
+async def get_user_by_id(
+    user_id: UUID,
+) -> User:
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="user not found",
+        )
+    user = await User.get(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="user not found ",
+        )
+
+    return user
+
+
+@router.get("/auth", name="auth:email")
+async def get_user_by_email(email: EmailStr) -> User:
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="email not found",
+        )
+    user = await User.find_one(User.email == email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="user not found",
+        )
+
+    return user
+
+
+@router.get("/auth/{provider}/login", name="auth:sso_login")
+async def sso_login(provider: str):
+    """Redirects the user to the provider's login page."""
+    if provider not in sso_providers:
+        raise HTTPException(status_code=404, detail="Provider not supported")
+
+    sso_client = sso_providers[provider]
+    return await sso_client.get_login_redirect()
+
+
+"""route for saving the SSO user"""
+
+
+@router.get("/auth/{provider}/callback", name="auth:callback")
+async def sso_callback(provider: str, request: Request):
+    """
+    Handles the callback from the SSO provider.
+    """
+    if provider not in sso_providers:
+        raise HTTPException(status_code=404, detail="Provider not supported")
+
+    sso_client = sso_providers[provider]
+
+    try:
+        user_info = await sso_client.verify_and_process(request)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authentication failed: {e}",
+        )
+
+    db_user = await find_or_create_user(
+        email=user_info.email, full_name=user_info.display_name, provider=provider
+    )
+
+    token = generate_token({"email": db_user.email})
+
+    return {
+        "user": db_user,
+        "token": token,
+        "message": "user authenticated successfully",
+        "success": "True",
+    }

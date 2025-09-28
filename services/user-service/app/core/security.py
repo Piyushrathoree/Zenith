@@ -1,20 +1,52 @@
-import bcrypt 
-from fastapi import HTTPException ,status
-from  
+import bcrypt
+from jose import jwt, JWTError
+from fastapi import HTTPException , status
+from datetime import datetime, timedelta, timezone
+from .config import settings
 
-def get_hash_password(password:str):
-    
-    if not password:
-        raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Password cannot be empty.",
-        )
-        
+ALGORITHM = "HS256"
+
+
+def get_hash_password(password: str):
     salt = bcrypt.gensalt(rounds=15)
-    hash_password = bcrypt.hashpw(password , salt)
-    
+    password_bytes = password.encode("utf-8")
+    hash_password = bcrypt.hashpw(password_bytes, salt)
+
     return hash_password
 
+def verify_password(password : str , hash_password:str):
+    password_bytes = password.encode("utf-8")
+    hash_password_bytes = hash_password.encode("utf-8")
 
-def generate_access_token(email:str):
-    
+    return bcrypt.checkpw(password_bytes , hash_password_bytes)
+
+
+def generate_token(data: dict):
+    try:
+        expire = datetime.now(timezone.utc) + timedelta(days=settings.TOKEN_EXPIRATION)
+        to_encode = data.copy() 
+        to_encode.update({"exp": expire})
+        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    except JWTError:    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email already exists.",
+        )
+
+def get_current_user(token:str):
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user_id
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
