@@ -11,3 +11,9 @@ class Register(BaseModel):
 class Login(BaseModel):
     email: EmailStr
     password: str
+
+
+class UpdateUser(BaseModel):
+    full_name: str | None = None
+    avatar_url: str | None = None
+    password: str | None = None

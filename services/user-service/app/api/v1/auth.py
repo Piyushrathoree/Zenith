@@ -7,10 +7,12 @@ from app.core.security import (
 )
 from ...schema.user import Register
 from ...schema.user import Login
+from ...schema.user import UpdateUser
 from ...db.model import User
 from uuid import UUID
 from pydantic import EmailStr
 from ...crud.user import find_or_create_user
+from datetime import datetime
 
 router = APIRouter()
 
@@ -159,5 +161,59 @@ async def sso_callback(provider: str, request: Request):
         "user": db_user,
         "token": token,
         "message": "user authenticated successfully",
+        "success": "True",
+    }
+
+
+@router.put("/auth/update", name="auth:update_user")
+async def update_user(user_data: UpdateUser, request: Request):
+    """Update user profile (requires authentication)"""
+    
+    # Get user email from middleware
+    user_email = getattr(request.state, 'user_email', None)
+    if not user_email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not authenticated"
+        )
+    
+    # Find the existing user
+    existing_user = await User.find_one(User.email == user_email)
+    if not existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Prepare update data
+    update_data = {}
+    
+    if user_data.full_name is not None:
+        update_data["full_name"] = user_data.full_name
+    
+    if user_data.avatar_url is not None:
+        update_data["avatar_url"] = user_data.avatar_url
+    
+    if user_data.password is not None:
+        update_data["password"] = get_hash_password(user_data.password)
+    
+    # Add updated timestamp
+    update_data["updated_at"] = datetime.utcnow()
+    
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid fields provided for update"
+        )
+    
+    # Update the user
+    await existing_user.update({"$set": update_data})
+    
+    # Fetch the updated user
+    updated_user = await User.find_one(User.email == user_email)
+    
+    return {
+        "user": updated_user,
+        "message": "User updated successfully",
         "success": "True",
     }
