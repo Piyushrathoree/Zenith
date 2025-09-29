@@ -1,6 +1,6 @@
 import bcrypt
 from jose import jwt, JWTError
-from fastapi import HTTPException , status
+from fastapi import HTTPException, status
 from datetime import datetime, timedelta, timezone
 from .config import settings
 
@@ -14,26 +14,28 @@ def get_hash_password(password: str):
 
     return hash_password
 
-def verify_password(password : str , hash_password:str):
+
+def verify_password(password: str, hash_password: str):
     password_bytes = password.encode("utf-8")
     hash_password_bytes = hash_password.encode("utf-8")
 
-    return bcrypt.checkpw(password_bytes , hash_password_bytes)
+    return bcrypt.checkpw(password_bytes, hash_password_bytes)
 
 
 def generate_token(data: dict):
     try:
         expire = datetime.now(timezone.utc) + timedelta(days=settings.TOKEN_EXPIRATION)
-        to_encode = data.copy() 
+        to_encode = data.copy()
         to_encode.update({"exp": expire})
         return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
-    except JWTError:    
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A user with this email already exists.",
         )
 
-def get_current_user(token:str):
+
+def get_current_user(token: str):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
