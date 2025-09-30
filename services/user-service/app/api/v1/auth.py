@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, status, Request, Depends
 from app.core.sso import sso_providers
 from app.core.security import (
     get_hash_password,
     verify_password,
     generate_token,
+    get_current_user,
 )
 from ...schema.user import Register
 from ...schema.user import Login
@@ -152,7 +153,7 @@ async def sso_callback(provider: str, request: Request):
         )
 
     db_user = await find_or_create_user(
-        email=user_info.email, full_name=user_info.display_name, provider=provider
+        email=user_info.email, full_name=user_info.display_name, sso_provider=provider
     )
 
     token = generate_token({"email": db_user.email})
@@ -165,55 +166,51 @@ async def sso_callback(provider: str, request: Request):
     }
 
 
-@router.put("/auth/update", name="auth:update_user")
-async def update_user(user_data: UpdateUser, request: Request):
+@router.put("/auth/update/{user_id}", name="auth:update_user")
+async def update_user(user_data: UpdateUser, request: Request, user_id: UUID):
     """Update user profile (requires authentication)"""
-    
-    # Get user email from middleware
-    user_email = getattr(request.state, 'user_email', None)
-    if not user_email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not authenticated"
-        )
-    
+
     # Find the existing user
-    existing_user = await User.find_one(User.email == user_email)
+    existing_user = await User.get(user_id)
     if not existing_user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    
+
     # Prepare update data
     update_data = {}
-    
+
     if user_data.full_name is not None:
         update_data["full_name"] = user_data.full_name
-    
+
     if user_data.avatar_url is not None:
         update_data["avatar_url"] = user_data.avatar_url
-    
+
     if user_data.password is not None:
         update_data["password"] = get_hash_password(user_data.password)
-    
+
     # Add updated timestamp
     update_data["updated_at"] = datetime.utcnow()
-    
+
     if not update_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No valid fields provided for update"
+            detail="No valid fields provided for update",
         )
-    
+
     # Update the user
     await existing_user.update({"$set": update_data})
-    
+
     # Fetch the updated user
-    updated_user = await User.find_one(User.email == user_email)
-    
+    updated_user = await User.find_one(User.email == existing_user.email)
+
     return {
         "user": updated_user,
         "message": "User updated successfully",
         "success": "True",
     }
+
+
+@router.get("/users", name="admin:all_users")
+async def get_all_users():
+    return await User.find_many().to_list()
