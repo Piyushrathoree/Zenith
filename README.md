@@ -62,8 +62,7 @@ Zenith
    │       │   ├── database.ts # MongoDB connection
    │       │   └── config.ts   # App configuration
    │       ├── utils/
-   │       │   ├── jwt.ts      # JWT utilities
-   │       │   └── encryption.ts # Password hashing
+   │       │   └── util.ts # Password hashing
    │       ├── types/          # TypeScript type definitions
    │       │   ├── user.types.ts
    │       │   └── auth.types.ts
