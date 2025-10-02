@@ -45,7 +45,7 @@ const RegisterUser = async (req: Request, res: Response) => {
         const newUser = new User({
             name,
             email,
-            password, 
+            password,
             verificationCode,
             verificationTokenExpiresAt: expiresAt,
         });
@@ -84,7 +84,7 @@ const LoginUser = async (req: Request, res: Response) => {
 
         const isPasswordCorrect = await user.comparePassword(password);
         console.log(isPasswordCorrect);
-        
+
         if (!isPasswordCorrect)
             throw new ApiError(401, "wrong username or password");
 
@@ -113,7 +113,7 @@ const updateUser = async (req: Request, res: Response) => {
             throw new ApiError(400, `${result.error}`);
         }
         const { name, avatarUrl } = result.data;
-        const id = req.user?._id;
+        const id = req.params?.userId;
         const updateData: Partial<{
             name: string;
             avatarUrl: string;
@@ -141,7 +141,7 @@ const updateUser = async (req: Request, res: Response) => {
 };
 
 const deleteUser = async (req: Request, res: Response) => {
-    const id = req.user?._id;
+    const id = req.params?.userId;
     const user = await User.findByIdAndDelete(id);
     if (!user) {
         throw new ApiError(404, "User not found");
@@ -151,5 +151,31 @@ const deleteUser = async (req: Request, res: Response) => {
         .json(new ApiResponse(200, { user }, "User deleted successfully"));
 };
 
+const getUserById = async (req: Request, res: Response) => {
+    const id = req.params?.userId;
+    if (!id) {
+        throw new ApiError(404, "user not found");
+    }
+    const user = await User.findById(id);
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { user }, "User fetched successfully"));
+};
 
-export { RegisterUser, LoginUser, updateUser, deleteUser };
+const getUserByEmail = async (req: Request, res: Response) => {
+    const { email } = req.body;
+    if (!email) {
+        throw new ApiError(404, "user not found");
+    }
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { user }, "User fetched successfully"));
+};
+export { RegisterUser, LoginUser, updateUser, deleteUser,getUserById,getUserByEmail };
