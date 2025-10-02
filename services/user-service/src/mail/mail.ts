@@ -8,7 +8,6 @@ import { ApiError } from "../utils/ApiError";
 
 const myMail = process.env.GMAIL!;
 const mailPasscode = process.env.GMAIL_PASSCODE!;
-const resetLink: string = "http://localhost:3000/user/reset-password";
 const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
