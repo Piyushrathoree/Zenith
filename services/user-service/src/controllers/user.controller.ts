@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import User from "../models/user.model.ts";
+import crypto from "crypto";
 
 declare global {
     namespace Express {
@@ -24,8 +25,9 @@ import {
     UpdateUserSchema,
 } from "../schema/user.schema.ts";
 import { ApiError } from "../utils/ApiError.ts";
-import { generateVerificationCode, hashPassword } from "../utils/util.ts";
+import { generateCode, hashPassword } from "../utils/util.ts";
 import { ApiResponse } from "../utils/ApiResponse.ts";
+import { sendForgotPasswordMail } from "../mail/mail.ts";
 
 const RegisterUser = async (req: Request, res: Response) => {
     try {
@@ -39,7 +41,7 @@ const RegisterUser = async (req: Request, res: Response) => {
         const existingUser = await User.findOne({ email });
         if (existingUser) throw new ApiError(400, "user already exists");
 
-        const verificationCode = generateVerificationCode();
+        const verificationCode = generateCode();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
         const newUser = new User({
@@ -178,4 +180,102 @@ const getUserByEmail = async (req: Request, res: Response) => {
         .status(200)
         .json(new ApiResponse(200, { user }, "User fetched successfully"));
 };
-export { RegisterUser, LoginUser, updateUser, deleteUser,getUserById,getUserByEmail };
+
+const ForgotPassword = async (req: Request, res: Response): Promise<any> => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).send({ message: "All fields are required" });
+    }
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).send({ message: "User not found" });
+        }
+        const resetPasswordToken = crypto.randomBytes(20).toString("hex");
+        const resetPasswordTokenExpires = Date.now() + 10 * 60 * 1000;
+
+        user.resetPasswordToken = resetPasswordToken;
+        user.resetPasswordTokenExpires = new Date(resetPasswordTokenExpires);
+        await user.save();
+
+        const resetLink = `${process.env.CLIENT_URL}/reset-password/${resetPasswordToken}`;
+        await sendForgotPasswordMail(email, resetLink);
+
+        return res.status(200).json({
+            success: true,
+            message: "password reset link has been sent to your email",
+            resetPasswordToken,
+        });
+    } catch (error) {
+        throw new Error(
+            error instanceof Error ? error.message : "An unknown error occurred"
+        );
+    }
+};
+
+const resetPassword = async (req:Request , res:Response)=>{
+    const token = req.params.token
+    const password = req.body.password
+
+    if (!token || !password) {
+        throw new ApiError(404 , "something is missing");
+    }
+    try  {
+        const user = await User.findOne({
+            resetPasswordToken:token,
+            resetPasswordTokenExpires: { $gt: Date.now() }
+        })
+        if (!user) {
+            return res
+                .status(400)
+                .json({ message: "Invalid or expired token" });
+        }
+        const hashedPassword = await hashPassword(password)
+        user.password = hashedPassword
+        user.resetPasswordToken = undefined
+        user.resetPasswordTokenExpires = undefined
+
+        await user.save()
+        return new ApiResponse(200 , user, "password changed successfully" , )  
+    }catch(err){
+        console.error(err)
+        throw new ApiError(500 , "something went wrong")
+    }
+}
+
+const changePassword = async (req:Request , res:Response)=>{
+    const {oldPassword , newPassword} = req.body
+    if (!oldPassword || !newPassword) {
+        throw new ApiError(404 , "something is missing");
+    }
+    try {
+        const user = await User.findById(req.user?._id);
+        if (!user) {
+            throw new ApiError(404, "User not found");
+        }
+        const isMatch = await user.comparePassword(oldPassword);
+        if (!isMatch) {
+            throw new ApiError(401, "Old password is incorrect");
+        }
+        user.password = await hashPassword(newPassword);
+        await user.save();
+        return new ApiResponse(200, user, "Password changed successfully");
+    } catch (error) {
+        console.error(error);
+        throw new ApiError(500, "Something went wrong");
+    }
+}
+
+
+export {
+    RegisterUser,
+    LoginUser,
+    updateUser,
+    deleteUser,
+    getUserById,
+    getUserByEmail,
+    ForgotPassword,
+    resetPassword,
+    changePassword
+};
