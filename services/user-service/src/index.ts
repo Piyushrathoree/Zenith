@@ -1,11 +1,11 @@
-import express from "express";
+import app from "./app";
 import type { Request, Response } from "express";
 import dotenv from "dotenv";
 import connectDB from "./db/db";
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+
+const PORT = process.env.PORT || 8000;
 
 app.get("/", (req: Request, res: Response) => {
   res.send("hello world");
@@ -20,3 +20,4 @@ const startServer = async () => {
 };
 
 startServer();
+
