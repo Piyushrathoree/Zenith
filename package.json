@@ -1,5 +1,5 @@
 {
-  "name": "Zenith",
+  "name": "zenith",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -20,5 +20,11 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@types/bun": "^1.2.23",
+    "@types/node": "^24.7.0",
+    "bun": "^1.2.23",
+    "eslint": "^9.37.0"
+  }
 }
