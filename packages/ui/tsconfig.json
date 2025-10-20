@@ -1,6 +1,7 @@
 {
-  "extends": "@repo/typescript-config/react-library.json",
+  "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
+    "jsx": "react",
     "outDir": "dist"
   },
   "include": ["src"],
