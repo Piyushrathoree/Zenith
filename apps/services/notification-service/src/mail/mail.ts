@@ -4,7 +4,7 @@ import {
     welcomeEmail,
     resetPasswordMail,
 } from "./mailTemplate";
-import { ApiError } from "../utils/ApiError";
+import { ApiError } from "../../../user-service/src/utils/ApiError";
 
 const myMail = process.env.GMAIL!;
 const mailPasscode = process.env.GMAIL_PASSCODE!;
