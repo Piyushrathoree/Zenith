@@ -29,6 +29,8 @@ import { generateCode, hashPassword } from "../utils/util.ts";
 import { ApiResponse } from "../utils/ApiResponse.ts";
 import { sendForgotPasswordMail } from "../mail/mail.ts";
 
+import { EmailQueue } from "../messaging/producer.ts";
+
 const RegisterUser = async (req: Request, res: Response) => {
     try {
         const result = RegisterUserSchema.safeParse(req.body);
@@ -59,6 +61,14 @@ const RegisterUser = async (req: Request, res: Response) => {
         if (!token) {
             throw new ApiError(404, "token not created");
         }
+        
+        // adding the verification code to the queue to send to notification service
+        await EmailQueue.add('send-verification-email', {
+            email: newUser.email,
+            name: newUser.name,
+            verificationCode: newUser.verificationCode,
+        });
+
         return res
             .status(201)
             .json(

@@ -7,9 +7,9 @@
     "start": "bun src/index.ts"
   },
   "dependencies": {
-    "bullmq": "^5.7.13",
+    "bullmq": "^5.63.0",
     "dotenv": "^16.4.5",
-    "ioredis": "^5.4.1",
+    "ioredis": "^5.8.2",
     "nodemailer": "^6.9.13",
     "zod": "^3.23.8"
   },
