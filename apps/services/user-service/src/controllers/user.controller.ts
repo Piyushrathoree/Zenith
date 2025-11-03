@@ -105,16 +105,28 @@ const LoginUser = async (req: Request, res: Response) => {
 
         const token = user.generateAuthToken();
         if (!token) {
-            return res
-                .status(201)
-                .json(
-                    new ApiResponse(
-                        201,
-                        { user, token },
-                        "user logged in successfully"
-                    )
-                );
+            throw new ApiError(404, "token not generated")
         }
+
+        // adding the welcome mail to the queue to send to notification service
+        await EmailQueue.add("send-welcome-email", {
+            email: email
+        });
+
+        console.log(
+            `[User-Service] Added 'send-welcome-email' job for ${email}`
+        );
+
+        return res
+            .status(201)
+            .json(
+                new ApiResponse(
+                    201,
+                    { user, token },
+                    "user logged in successfully"
+                )
+            );
+
     } catch (error) {
         console.error(error);
         throw new ApiError(500, `${error}`);
@@ -213,7 +225,17 @@ const ForgotPassword = async (req: Request, res: Response): Promise<any> => {
         await user.save();
 
         const resetLink = `${process.env.CLIENT_URL}/reset-password/${resetPasswordToken}`;
-        await sendForgotPasswordMail(email, resetLink);
+        // await sendForgotPasswordMail(email, resetLink);
+
+        // adding the verification code to the queue to send to notification service
+        await EmailQueue.add("send-forgot-password-email", {
+            email: user.email,
+            resetLink: resetLink
+        });
+
+        console.log(
+            `[User-Service] Added 'send-forgot-password-email' job for ${user.email}`
+        );
 
         return res.status(200).json({
             success: true,

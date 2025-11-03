@@ -25,12 +25,13 @@ if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
 const worker = new Worker<emailJobPayload>(
     'email-queue',
     async (job) => {
-        const { email, verificationCode } = job.data
-        console.log(`[Job ${job.id}] Processing: Send email to ${email}`);
 
         try {
-            await sendVerificationCode(email, verificationCode);
-            console.log(`[Job ${job.id}] SUCCESS: Email sent to ${email}`);
+            switch(job.name){
+                case 'send-verification-email':
+                    await sendVerificationCode(job.data);
+            }
+            
         } catch (error: any) {
             console.error(`[Job ${job.id}] FAILED: ${error.message}`);
             throw error;
