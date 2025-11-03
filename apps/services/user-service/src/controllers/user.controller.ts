@@ -27,7 +27,7 @@ import {
 import { ApiError } from "../utils/ApiError.ts";
 import { generateCode, hashPassword } from "../utils/util.ts";
 import { ApiResponse } from "../utils/ApiResponse.ts";
-import { sendForgotPasswordMail } from "../mail/mail.ts";
+// import { sendForgotPasswordMail } from "../mail/mail.ts";
 
 import { EmailQueue } from "../messaging/producer.ts";
 
@@ -61,13 +61,16 @@ const RegisterUser = async (req: Request, res: Response) => {
         if (!token) {
             throw new ApiError(404, "token not created");
         }
-        
+
         // adding the verification code to the queue to send to notification service
-        await EmailQueue.add('send-verification-email', {
+        await EmailQueue.add("send-verification-email", {
             email: newUser.email,
-            name: newUser.name,
             verificationCode: newUser.verificationCode,
         });
+
+        console.log(
+            `[User-Service] Added 'send-verification-email' job for ${newUser.email}`
+        );
 
         return res
             .status(201)
@@ -224,40 +227,40 @@ const ForgotPassword = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
-const resetPassword = async (req:Request , res:Response)=>{
-    const token = req.params.token
-    const password = req.body.password
+const resetPassword = async (req: Request, res: Response) => {
+    const token = req.params.token;
+    const password = req.body.password;
 
     if (!token || !password) {
-        throw new ApiError(404 , "something is missing");
+        throw new ApiError(404, "something is missing");
     }
-    try  {
+    try {
         const user = await User.findOne({
-            resetPasswordToken:token,
-            resetPasswordTokenExpires: { $gt: Date.now() }
-        })
+            resetPasswordToken: token,
+            resetPasswordTokenExpires: { $gt: Date.now() },
+        });
         if (!user) {
             return res
                 .status(400)
                 .json({ message: "Invalid or expired token" });
         }
-        const hashedPassword = await hashPassword(password)
-        user.password = hashedPassword
-        user.resetPasswordToken = undefined
-        user.resetPasswordTokenExpires = undefined
+        const hashedPassword = await hashPassword(password);
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordTokenExpires = undefined;
 
-        await user.save()
-        return new ApiResponse(200 , user, "password changed successfully" , )  
-    }catch(err){
-        console.error(err)
-        throw new ApiError(500 , "something went wrong")
+        await user.save();
+        return new ApiResponse(200, user, "password changed successfully");
+    } catch (err) {
+        console.error(err);
+        throw new ApiError(500, "something went wrong");
     }
-}
+};
 
-const changePassword = async (req:Request , res:Response)=>{
-    const {oldPassword , newPassword} = req.body
+const changePassword = async (req: Request, res: Response) => {
+    const { oldPassword, newPassword } = req.body;
     if (!oldPassword || !newPassword) {
-        throw new ApiError(404 , "something is missing");
+        throw new ApiError(404, "something is missing");
     }
     try {
         const user = await User.findById(req.user?._id);
@@ -275,8 +278,7 @@ const changePassword = async (req:Request , res:Response)=>{
         console.error(error);
         throw new ApiError(500, "Something went wrong");
     }
-}
-
+};
 
 export {
     RegisterUser,
@@ -287,5 +289,5 @@ export {
     getUserByEmail,
     ForgotPassword,
     resetPassword,
-    changePassword
+    changePassword,
 };
