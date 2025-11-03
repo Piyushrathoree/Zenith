@@ -3,7 +3,7 @@ dotenv.config()
 
 import { Worker } from 'bullmq'
 import { Redis } from 'ioredis'
-import { sendVerificationCode } from './mail/mail'
+import { sendForgotPasswordMail, sendVerificationCode, sendWelcomeMail } from './mail/mail'
 
 
 console.log("starting notification service worker ....")
@@ -27,11 +27,24 @@ const worker = new Worker<emailJobPayload>(
     async (job) => {
 
         try {
-            switch(job.name){
+            switch (job.name) {
                 case 'send-verification-email':
                     await sendVerificationCode(job.data);
+                    break;
+
+                case 'send-welcome-email':
+                    await sendWelcomeMail(job.data);
+                    break;
+
+                case 'send-forgot-password-email':
+                    await sendForgotPasswordMail(job.data)
+                    break;
+
+                default:
+                    console.warn(`[Job ${job.id}] Unknown job name: ${job.name}`);
+                    break;
             }
-            
+
         } catch (error: any) {
             console.error(`[Job ${job.id}] FAILED: ${error.message}`);
             throw error;

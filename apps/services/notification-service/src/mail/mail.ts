@@ -17,11 +17,12 @@ const transporter = nodemailer.createTransport({
     },
 });
 type JobData = {
-    email : string ,
-    code?:string
+    email: string,
+    code?: string,
+    resetLink?: string
 }
 
-const sendVerificationCode = async (data : JobData) => {
+const sendVerificationCode = async (data: JobData) => {
     try {
         const { email, code } = data;
         if (!code) {
@@ -42,7 +43,7 @@ const sendVerificationCode = async (data : JobData) => {
     }
 };
 
-const sendWelcomeMail = async (data : JobData) => {
+const sendWelcomeMail = async (data: JobData) => {
     try {
         const { email } = data;
         const mailOptions = {
@@ -60,8 +61,12 @@ const sendWelcomeMail = async (data : JobData) => {
     }
 };
 
-const sendForgotPasswordMail = async (email: string, resetLink: string) => {
+const sendForgotPasswordMail = async (data: JobData) => {
     try {
+        const { email, resetLink } = data
+        if (!resetLink) {
+            throw new ApiError(404, "verification code not found")
+        }
         const mailOptions = {
             from: myMail,
             to: email,
@@ -69,8 +74,8 @@ const sendForgotPasswordMail = async (email: string, resetLink: string) => {
             text: "Reset password link",
             html: resetPasswordMail.replace("RESET_LINK", resetLink),
         };
-        const data = await transporter.sendMail(mailOptions);
-        return data;
+        const response = await transporter.sendMail(mailOptions);
+        return response;
     } catch (error) {
         console.error(error);
         throw new ApiError(500, "something went wrong while sending mail ");
