@@ -14,3 +14,5 @@ const projectSchema = new Schema<IProjectModel>({
         index: true
     }
 })
+
+export const Project = model<IProjectModel>("Project", projectSchema);

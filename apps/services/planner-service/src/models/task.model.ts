@@ -6,13 +6,31 @@ export interface ITaskModel extends Document {
     projectId: Types.ObjectId
     start?: Date,
     due?: Date,
-    status: "todo" | "not started" | "In progress" | "done",
-    notes : string
+    status: "todo" | "not_started" | "in_progress" | "done",
+    notes: string
 }
 
-const taskSchema = new Schema <ITaskModel>({
-    title:{type:String },
-    userId: Schema.Types.ObjectId,
-    projectId:Schema.Types.ObjectId,
-        
+const taskSchema = new Schema<ITaskModel>({
+    title: { type: String },
+    userId: {
+        type: Schema.Types.ObjectId,
+        required: true
+    },
+    projectId:
+    {
+        type: Schema.Types.ObjectId,
+        ref: 'Project',
+        required: true,
+        index: true
+    },
+    status: {
+        type: String,
+        enum: ['todo', 'in_progress', 'done', 'not_started'],
+        default: 'todo'
+    },
+    start: { type: Date },
+    due: { type: Date },
+    notes: { type: String }
 })
+
+export const Task = model<ITaskModel>("Task", taskSchema);
