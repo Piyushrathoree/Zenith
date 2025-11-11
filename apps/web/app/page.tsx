@@ -1,8 +1,11 @@
 import React from 'react'
+import Navbar from './components/custom/Navbar'
 
 const page = () => {
   return (
-    <div className='text-8xl text-white '>Zenith</div>
+    <div>
+      <Navbar />
+    </div>
   )
 }
 
