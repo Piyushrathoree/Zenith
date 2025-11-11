@@ -2,8 +2,21 @@
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "jsx": "react",
-    "outDir": "dist"
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+
   },
-  "include": ["src"],
+
+  "include": [
+    "src",
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts",
+    "next.config.ts",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["dist", "build", "node_modules"]
 }
