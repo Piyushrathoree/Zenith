@@ -58,8 +58,8 @@ function button({
 }
 function Button() {
   return (
-    <button className="rounded-full flex items-center justify-center bg-[#ff8000] px-8 py-3 text-white hover:bg-[#DB7414]">
-      Start for free
+    <button className="rounded-full  font-bold flex items-center justify-center bg-[#ff8000] px-6 py-2.5 text-white hover:bg-[#DB7414]">
+      Get Started
     </button>
   );
 }

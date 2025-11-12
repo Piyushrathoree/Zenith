@@ -1,12 +1,13 @@
 import React from "react";
-import { Button } from "./components/ui/button";
-import { AvatarCircles } from "./components/ui/avatar-circles";
+
 import HeroSection from "./components/custom/HeroSection";
+import HorizontalScroller from "./components/custom/HorizontalScroller";
 
 const page = () => {
   return (
     <div className="relative ">
      <HeroSection />
+     <HorizontalScroller />
     </div>
   );
 };

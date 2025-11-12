@@ -41,5 +41,35 @@
   background-color: #ff7b00;
   transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
   transition-duration: 400ms;
-  transition-property: width,left ;
+  transition-property: width, left;
+}
+
+
+@keyframes infinite-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-infinite-scroll {
+  animation: infinite-scroll 13s linear infinite;
+  will-change: transform;
+  display: flex;
+}
+
+/* pause animation when parent (group) is hovered */
+.group:hover .animate-infinite-scroll {
+  animation-play-state: paused;
+}
+
+/* hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
