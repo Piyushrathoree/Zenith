@@ -1,9 +1,12 @@
 
 import "./globals.css";
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { DM_Sans } from "next/font/google";
+import { Instrument_Serif } from "next/font/google";
+import Navbar from "./components/custom/Navbar";
 
-const geist = Geist({ subsets: ["latin"] });
+const dmSans = DM_Sans({ subsets: ["latin"] });
+
 
 export const metadata: Metadata = {
   title: "Zenith",
@@ -17,7 +20,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={geist.className}>{children}</body>
+      <body className={`${dmSans.className} px-[15%] min-h-screen max-w-screen relative overflow-x-hidden`}>
+        <img
+          src="/bg-blur.svg"
+          alt=""
+          className="absolute -top-50 -right-100 -z-10 opacity-90 blur-3xl"
+        />
+        <div className=" min-h-screen z-100">
+          <Navbar />
+          {children}
+        </div>
+      </body>
     </html>
   );
 }
