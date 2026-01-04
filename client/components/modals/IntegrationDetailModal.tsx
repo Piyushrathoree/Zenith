@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Github, Mail, FileText, ExternalLink, Clock, User, Tag } from 'lucide-react';
-import { useApp, IntegrationDetailType } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
