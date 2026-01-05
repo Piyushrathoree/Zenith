@@ -1,13 +1,13 @@
 'use client';
 
-import React from 'react';
+import Landing from '@/page/Landing';
 
-const page = () => {
+const Page = () => {
   return (
     <div>
-      
+     <Landing />
     </div>
   )
 }
 
-export default page
+export default Page

@@ -30,13 +30,13 @@ export function DashboardLayout() {
     focusMode,
     moveTask,
     addTask,
-    columns,
     showWeeklyRituals,
     setShowWeeklyRituals,
     weeklyRitualType,
   } = useApp();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeDragType, setActiveDragType] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [activeDragData, setActiveDragData] = useState<any>(null);
 
   const mouseSensor = useSensor(MouseSensor, {
