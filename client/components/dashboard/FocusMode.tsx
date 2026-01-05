@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play, Pause, RotateCcw, ChevronDown } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
-import { cn } from '@/lib/utils';
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Play, Pause, RotateCcw } from "lucide-react";
+import { useApp } from "@/context/AppContext";
+import { cn } from "@/lib/utils";
 
 export function FocusMode() {
   const { focusMode, setFocusMode, focusTask, tasks } = useApp();
@@ -10,12 +10,14 @@ export function FocusMode() {
   const [isRunning, setIsRunning] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(25);
 
-  const currentTask = focusTask || tasks.find(t => !t.completed);
+  const currentTask = focusTask || tasks.find((t) => !t.completed);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   const handleStart = useCallback(() => {
@@ -38,21 +40,23 @@ export function FocusMode() {
   }, []);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0) {
-      setIsRunning(false);
-      // Could add notification here
-    }
+    if (!isRunning || timeLeft <= 0) return;
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          setIsRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft]);
+  }, [isRunning]);
 
-  const progress = ((selectedDuration * 60 - timeLeft) / (selectedDuration * 60)) * 100;
+  const progress =
+    ((selectedDuration * 60 - timeLeft) / (selectedDuration * 60)) * 100;
 
   const durations = [15, 25, 45, 60];
 
@@ -121,7 +125,7 @@ export function FocusMode() {
               className="text-accent"
               initial={{ strokeDasharray: 942, strokeDashoffset: 942 }}
               animate={{ strokeDashoffset: 942 - (942 * progress) / 100 }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
             />
           </svg>
 
@@ -131,7 +135,7 @@ export function FocusMode() {
               {formatTime(timeLeft)}
             </span>
             <span className="text-sm text-muted-foreground mt-2">
-              {isRunning ? 'Focus time' : 'Ready to focus'}
+              {isRunning ? "Focus time" : "Ready to focus"}
             </span>
           </div>
         </motion.div>
@@ -144,13 +148,17 @@ export function FocusMode() {
             transition={{ delay: 0.2 }}
             className="mt-8 text-center"
           >
-            <p className="text-xl font-medium text-foreground">{currentTask.title}</p>
-            <p className={cn(
-              "text-sm mt-1",
-              currentTask.tag === 'work' && "text-tag-work",
-              currentTask.tag === 'personal' && "text-tag-personal",
-              currentTask.tag === 'health' && "text-tag-health"
-            )}>
+            <p className="text-xl font-medium text-foreground">
+              {currentTask.title}
+            </p>
+            <p
+              className={cn(
+                "text-sm mt-1",
+                currentTask.tag === "work" && "text-tag-work",
+                currentTask.tag === "personal" && "text-tag-personal",
+                currentTask.tag === "health" && "text-tag-health"
+              )}
+            >
               #{currentTask.tag}
             </p>
           </motion.div>
@@ -169,7 +177,6 @@ export function FocusMode() {
           >
             <RotateCcw className="w-6 h-6 text-muted-foreground" />
           </button>
-
           <button
             onClick={isRunning ? handlePause : handleStart}
             className="p-6 bg-accent text-accent-foreground rounded-full hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20"
@@ -180,7 +187,6 @@ export function FocusMode() {
               <Play className="w-8 h-8 ml-1" />
             )}
           </button>
-
           <div className="w-12" /> {/* Spacer for symmetry */}
         </motion.div>
 
@@ -191,7 +197,8 @@ export function FocusMode() {
           transition={{ delay: 0.4 }}
           className="absolute bottom-6 text-sm text-muted-foreground"
         >
-          Press <kbd className="px-2 py-1 bg-muted rounded text-xs">Space</kbd> to {isRunning ? 'pause' : 'start'} ·{' '}
+          Press <kbd className="px-2 py-1 bg-muted rounded text-xs">Space</kbd>{" "}
+          to {isRunning ? "pause" : "start"} ·{" "}
           <kbd className="px-2 py-1 bg-muted rounded text-xs">Esc</kbd> to exit
         </motion.div>
       </motion.div>

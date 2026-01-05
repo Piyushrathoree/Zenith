@@ -1,5 +1,5 @@
 import { Task, GitHubIssue, GitHubPR, GmailMessage, NotionPage, DailyTask } from '@/types';
-import { addDays, format, subDays } from 'date-fns';
+import { addDays, format } from 'date-fns';
 
 const today = new Date();
 

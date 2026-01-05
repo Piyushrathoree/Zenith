@@ -1,4 +1,4 @@
-import { format, isSameDay, isToday } from "date-fns";
+import { format, isToday } from "date-fns";
 import { Plus } from "lucide-react";
 import { useDroppable } from "@dnd-kit/core";
 import {

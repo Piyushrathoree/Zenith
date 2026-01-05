@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Filter, X, Check } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { useState } from "react";
+import { Filter, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-export type FilterTag = 'work' | 'personal' | 'health' | 'all';
-export type FilterStatus = 'all' | 'completed' | 'pending';
+export type FilterTag = "work" | "personal" | "health" | "all";
+export type FilterStatus = "all" | "completed" | "pending";
 
 interface FilterDropdownProps {
   selectedTags: FilterTag[];
@@ -24,32 +24,33 @@ export function FilterDropdown({
   const [isOpen, setIsOpen] = useState(false);
 
   const tags: { value: FilterTag; label: string; color: string }[] = [
-    { value: 'all', label: 'All Tags', color: 'bg-muted' },
-    { value: 'work', label: 'Work', color: 'bg-tag-work' },
-    { value: 'personal', label: 'Personal', color: 'bg-tag-personal' },
-    { value: 'health', label: 'Health', color: 'bg-tag-health' },
+    { value: "all", label: "All Tags", color: "bg-muted" },
+    { value: "work", label: "Work", color: "bg-tag-work" },
+    { value: "personal", label: "Personal", color: "bg-tag-personal" },
+    { value: "health", label: "Health", color: "bg-tag-health" },
   ];
 
   const statuses: { value: FilterStatus; label: string }[] = [
-    { value: 'all', label: 'All Tasks' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'completed', label: 'Completed' },
+    { value: "all", label: "All Tasks" },
+    { value: "pending", label: "Pending" },
+    { value: "completed", label: "Completed" },
   ];
 
   const toggleTag = (tag: FilterTag) => {
-    if (tag === 'all') {
-      onTagChange(['all']);
+    if (tag === "all") {
+      onTagChange(["all"]);
     } else {
-      const newTags = selectedTags.includes('all')
+      const newTags = selectedTags.includes("all")
         ? [tag]
         : selectedTags.includes(tag)
-          ? selectedTags.filter(t => t !== tag)
-          : [...selectedTags, tag];
-      onTagChange(newTags.length === 0 ? ['all'] : newTags);
+        ? selectedTags.filter((t) => t !== tag)
+        : [...selectedTags, tag];
+      onTagChange(newTags.length === 0 ? ["all"] : newTags);
     }
   };
 
-  const hasActiveFilters = !selectedTags.includes('all') || selectedStatus !== 'all';
+  const hasActiveFilters =
+    !selectedTags.includes("all") || selectedStatus !== "all";
 
   return (
     <div className="relative">
@@ -82,7 +83,9 @@ export function FilterDropdown({
               className="absolute top-full left-0 mt-2 w-64 p-3 bg-card border border-border rounded-lg shadow-lg z-50"
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-foreground">Filters</span>
+                <span className="text-sm font-medium text-foreground">
+                  Filters
+                </span>
                 {hasActiveFilters && (
                   <button
                     onClick={onReset}
@@ -95,7 +98,9 @@ export function FilterDropdown({
 
               {/* Tag Filters */}
               <div className="mb-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Tags</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Tags
+                </p>
                 <div className="space-y-1">
                   {tags.map((tag) => (
                     <button
@@ -109,7 +114,9 @@ export function FilterDropdown({
                       )}
                     >
                       <div className={cn("w-3 h-3 rounded-full", tag.color)} />
-                      <span className="text-sm flex-1 text-left">{tag.label}</span>
+                      <span className="text-sm flex-1 text-left">
+                        {tag.label}
+                      </span>
                       {selectedTags.includes(tag.value) && (
                         <Check className="w-4 h-4 text-accent" />
                       )}
@@ -120,7 +127,9 @@ export function FilterDropdown({
 
               {/* Status Filters */}
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Status</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Status
+                </p>
                 <div className="space-y-1">
                   {statuses.map((status) => (
                     <button
@@ -133,7 +142,9 @@ export function FilterDropdown({
                           : "hover:bg-muted text-muted-foreground"
                       )}
                     >
-                      <span className="text-sm flex-1 text-left">{status.label}</span>
+                      <span className="text-sm flex-1 text-left">
+                        {status.label}
+                      </span>
                       {selectedStatus === status.value && (
                         <Check className="w-4 h-4 text-accent" />
                       )}

@@ -1,26 +1,32 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, CheckCircle2, Circle, Clock, Hash } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
-import { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Plus, CheckCircle2, Circle, Clock, Hash } from "lucide-react";
+import { useApp } from "@/context/AppContext";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export function TodayPanel() {
-  const { showTodayPanel, setShowTodayPanel, dailyTasks, toggleDailyTask, addDailyTask } = useApp();
-  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const {
+    showTodayPanel,
+    setShowTodayPanel,
+    dailyTasks,
+    toggleDailyTask,
+    addDailyTask,
+  } = useApp();
+  const [newTaskTitle, setNewTaskTitle] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
-    
+
     addDailyTask({
       title: newTaskTitle.trim(),
-      duration: '0:30',
+      duration: "0:30",
       completed: false,
-      tag: 'work',
+      tag: "work",
     });
-    
-    setNewTaskTitle('');
+
+    setNewTaskTitle("");
     setShowAddForm(false);
   };
 
@@ -39,13 +45,13 @@ export function TodayPanel() {
           initial={{ opacity: 0, x: -100 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -100 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className="absolute left-sidebar top-0 bottom-0 w-96 bg-card border-r border-border shadow-2xl overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="sticky top-0 flex items-center justify-between px-4 py-4 bg-card border-b border-border">
-            <h2 className="text-lg font-semibold">Today's Plan</h2>
+            <h2 className="text-lg font-semibold">Today&apos;s Plan</h2>
             <button
               onClick={() => setShowTodayPanel(false)}
               className="p-1.5 hover:bg-muted rounded-lg transition-colors"
@@ -73,10 +79,12 @@ export function TodayPanel() {
                   )}
                 </button>
                 <div className="flex-1">
-                  <p className={cn(
-                    "text-sm font-medium",
-                    task.completed && "line-through text-muted-foreground"
-                  )}>
+                  <p
+                    className={cn(
+                      "text-sm font-medium",
+                      task.completed && "line-through text-muted-foreground"
+                    )}
+                  >
                     {task.title}
                   </p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -100,7 +108,10 @@ export function TodayPanel() {
 
             {/* Add Task Form */}
             {showAddForm ? (
-              <form onSubmit={handleAddTask} className="p-3 bg-muted/50 rounded-lg">
+              <form
+                onSubmit={handleAddTask}
+                className="p-3 bg-muted/50 rounded-lg"
+              >
                 <input
                   type="text"
                   value={newTaskTitle}

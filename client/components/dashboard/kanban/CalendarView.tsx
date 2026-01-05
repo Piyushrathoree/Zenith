@@ -1,13 +1,23 @@
-import { useApp } from '@/context/AppContext';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, isToday } from 'date-fns';
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { Task } from '@/types';
+import { useApp } from "@/context/AppContext";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  isSameMonth,
+  isToday,
+} from "date-fns";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { Task } from "@/types";
 
 export function CalendarView() {
-  const { tasks, setShowCreateModal, setSelectedTask, setShowTaskModal } = useApp();
+  const { tasks, setShowCreateModal, setSelectedTask, setShowTaskModal } =
+    useApp();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
@@ -29,7 +39,7 @@ export function CalendarView() {
   }
 
   const getTasksForDate = (date: Date): Task[] => {
-    return tasks.filter(task => task.date === format(date, 'yyyy-MM-dd'));
+    return tasks.filter((task) => task.date === format(date, "yyyy-MM-dd"));
   };
 
   const handleTaskClick = (task: Task) => {
@@ -39,10 +49,14 @@ export function CalendarView() {
 
   const getTagColor = (tag: string) => {
     switch (tag) {
-      case 'work': return 'bg-tag-work/20 text-tag-work';
-      case 'personal': return 'bg-tag-personal/20 text-tag-personal';
-      case 'health': return 'bg-tag-health/20 text-tag-health';
-      default: return 'bg-muted text-muted-foreground';
+      case "work":
+        return "bg-tag-work/20 text-tag-work";
+      case "personal":
+        return "bg-tag-personal/20 text-tag-personal";
+      case "health":
+        return "bg-tag-health/20 text-tag-health";
+      default:
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -51,7 +65,7 @@ export function CalendarView() {
       {/* Calendar Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-foreground">
-          {format(currentMonth, 'MMMM yyyy')}
+          {format(currentMonth, "MMMM yyyy")}
         </h2>
         <div className="flex items-center gap-2">
           <motion.button
@@ -83,7 +97,7 @@ export function CalendarView() {
 
       {/* Day Headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName) => (
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
           <div
             key={dayName}
             className="text-center text-xs font-medium text-muted-foreground py-2"
@@ -102,7 +116,7 @@ export function CalendarView() {
                 const dayTasks = getTasksForDate(date);
                 const isCurrentMonth = isSameMonth(date, currentMonth);
                 const isCurrentDay = isToday(date);
-                
+
                 return (
                   <motion.div
                     key={date.toISOString()}
@@ -112,7 +126,8 @@ export function CalendarView() {
                     className={cn(
                       "min-h-24 p-1.5 rounded-lg border border-border/50 transition-all group",
                       isCurrentMonth ? "bg-card" : "bg-muted/30",
-                      isCurrentDay && "ring-2 ring-accent ring-offset-2 ring-offset-background",
+                      isCurrentDay &&
+                        "ring-2 ring-accent ring-offset-2 ring-offset-background",
                       "hover:border-accent/30"
                     )}
                   >
@@ -120,11 +135,13 @@ export function CalendarView() {
                       <span
                         className={cn(
                           "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full",
-                          isCurrentDay ? "bg-accent text-accent-foreground" : "text-foreground",
+                          isCurrentDay
+                            ? "bg-accent text-accent-foreground"
+                            : "text-foreground",
                           !isCurrentMonth && "text-muted-foreground/50"
                         )}
                       >
-                        {format(date, 'd')}
+                        {format(date, "d")}
                       </span>
                       <button
                         onClick={() => setShowCreateModal(true)}
@@ -133,7 +150,7 @@ export function CalendarView() {
                         <Plus className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>
                     </div>
-                    
+
                     <div className="space-y-0.5 overflow-hidden">
                       {dayTasks.slice(0, 3).map((task) => (
                         <motion.button

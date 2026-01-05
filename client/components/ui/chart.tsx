@@ -67,7 +67,7 @@ ChartContainer.displayName = "Chart";
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
-    ([_, config]) => config.theme || config.color
+    ([, itemConfig]) => itemConfig.theme || itemConfig.color
   );
 
   if (!colorConfig.length) {
@@ -110,8 +110,15 @@ const ChartTooltipContent = React.forwardRef<
       nameKey?: string;
       labelKey?: string;
       active?: boolean;
-      payload?: any[];
-      label?: any;
+      payload?: Array<{
+        dataKey?: string;
+        name?: string;
+        value?: number | string;
+        payload?: Record<string, unknown>;
+        color?: string;
+        fill?: string;
+      }>;
+      label?: string | number;
     }
 >(
   (
@@ -262,6 +269,7 @@ const ChartLegend = RechartsPrimitive.Legend;
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     payload?: any[];
     verticalAlign?: "top" | "middle" | "bottom";
   } & {
