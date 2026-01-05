@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react'
+import React from 'react';
 
 const page = () => {
   return (
-    <div>hello world</div>
+    <div>
+      
+    </div>
   )
 }
 

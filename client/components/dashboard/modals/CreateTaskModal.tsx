@@ -1,19 +1,23 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Hash, Calendar, Clock, Check } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
-import { format, addDays } from 'date-fns';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Hash, Calendar, Clock, Check } from "lucide-react";
+import { useApp } from "@/context/AppContext";
+import { format, addDays } from "date-fns";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 export function CreateTaskModal() {
   const { showCreateModal, setShowCreateModal, addTask } = useApp();
-  const [title, setTitle] = useState('');
-  const [tag, setTag] = useState<'work' | 'personal' | 'health'>('work');
+  const [title, setTitle] = useState("");
+  const [tag, setTag] = useState<"work" | "personal" | "health">("work");
   const [date, setDate] = useState<Date>(new Date());
-  const [time, setTime] = useState('');
-  const [duration, setDuration] = useState('1:00');
+  const [time, setTime] = useState("");
+  const [duration, setDuration] = useState("1:00");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,28 +28,32 @@ export function CreateTaskModal() {
       time: time || undefined,
       duration,
       tag,
-      date: format(date, 'yyyy-MM-dd'),
+      date: format(date, "yyyy-MM-dd"),
       completed: false,
     });
 
-    setTitle('');
-    setTime('');
+    setTitle("");
+    setTime("");
     setShowCreateModal(false);
   };
 
-  const tags: { value: 'work' | 'personal' | 'health'; label: string; color: string }[] = [
-    { value: 'work', label: 'work', color: 'text-tag-work' },
-    { value: 'personal', label: 'personal', color: 'text-tag-personal' },
-    { value: 'health', label: 'health', color: 'text-tag-health' },
+  const tags: {
+    value: "work" | "personal" | "health";
+    label: string;
+    color: string;
+  }[] = [
+    { value: "work", label: "work", color: "text-tag-work" },
+    { value: "personal", label: "personal", color: "text-tag-personal" },
+    { value: "health", label: "health", color: "text-tag-health" },
   ];
 
   const quickDates = [
-    { label: 'Today', value: new Date() },
-    { label: 'Tomorrow', value: addDays(new Date(), 1) },
-    { label: 'Next Week', value: addDays(new Date(), 7) },
+    { label: "Today", value: new Date() },
+    { label: "Tomorrow", value: addDays(new Date(), 1) },
+    { label: "Next Week", value: addDays(new Date(), 7) },
   ];
 
-  const durations = ['0:15', '0:30', '0:45', '1:00', '1:30', '2:00', '3:00'];
+  const durations = ["0:15", "0:30", "0:45", "1:00", "1:30", "2:00", "3:00"];
 
   if (!showCreateModal) return null;
 
@@ -62,7 +70,7 @@ export function CreateTaskModal() {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
@@ -75,7 +83,9 @@ export function CreateTaskModal() {
                   onClick={() => setTag(t.value)}
                   className={cn(
                     "flex items-center gap-1 text-sm transition-colors",
-                    tag === t.value ? t.color : "text-muted-foreground hover:text-foreground"
+                    tag === t.value
+                      ? t.color
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   <Hash className="w-3.5 h-3.5" />
@@ -113,7 +123,7 @@ export function CreateTaskModal() {
                     className="flex items-center gap-2 px-3 py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm transition-colors"
                   >
                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span>{format(date, 'MMM d')}</span>
+                    <span>{format(date, "MMM d")}</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -148,7 +158,7 @@ export function CreateTaskModal() {
                     className="flex items-center gap-2 px-3 py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm transition-colors"
                   >
                     <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span>{time || '--:--'}</span>
+                    <span>{time || "--:--"}</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-48 p-2" align="start">

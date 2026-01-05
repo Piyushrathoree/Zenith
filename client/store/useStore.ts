@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { Task, Column, DailyTask, IntegrationType, GitHubIssue, GitHubPR, GmailMessage, NotionPage } from '@/types';
 import { generateTasks, mockDailyTasks, mockGitHubIssues, mockGitHubPRs, mockGmailMessages, mockNotionPages } from '@/lib/mockData';
 import { addDays, format, startOfDay } from 'date-fns';
-import { FilterTag, FilterStatus } from '@/components/kanban/FilterDropdown';
+import { FilterTag, FilterStatus } from '@/components/dashboard/kanban/FilterDropdown';
 
 export type ViewMode = 'board' | 'calendar';
 

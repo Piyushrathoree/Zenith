@@ -1,6 +1,6 @@
 "use client";
 
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
