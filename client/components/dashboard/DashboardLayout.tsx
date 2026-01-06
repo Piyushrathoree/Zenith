@@ -146,7 +146,7 @@ export function DashboardLayout() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-screen bg-background overflow-hidden">
+      <div className="flex h-screen bg-background overflow-hidden font-alan">
         <LeftSidebar />
 
         <main className="flex-1 flex overflow-hidden">
