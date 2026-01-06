@@ -35,7 +35,7 @@ const Hero = () => {
           height={800}
           className="absolute bottom-90 left-90 blur-3xl z-0"
         />
-        <div className="flex h-[76vh] w-[75vw] items-center justify-center rounded-[25px] border-dashed border-[#F97E2C]/20 border-2 bg-neutral-200/50 backdrop-blur-sm">
+        <div className="flex h-[78vh] w-[75vw] items-center justify-center rounded-[25px] border-dashed border-[#F97E2C]/20 border-2 bg-neutral-200/50 backdrop-blur-sm">
           <Image
             src="/assets/hero.png"
             alt="Hero Dashboard"
@@ -50,3 +50,4 @@ const Hero = () => {
 };
 
 export default Hero;
+
