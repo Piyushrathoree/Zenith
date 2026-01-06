@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Alan_Sans } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 
 const alanSans = Alan_Sans({
   variable: "--font-alan",
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body
         className={`${alanSans.variable} ${instrumentSerif.variable}  antialiased`}
       >
+        <Analytics />
         {children}
       </body>
     </html>
