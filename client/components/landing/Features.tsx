@@ -1,13 +1,11 @@
 "use client";
 import React from "react";
-import Image from "next/image";
 import { TracingBeam } from "../ui/tracing-beam";
 import {
   Calendar,
   CheckCircle2,
   Clock,
   Bell,
-  Sparkles,
   Coffee,
   ListTodo,
   Target,
