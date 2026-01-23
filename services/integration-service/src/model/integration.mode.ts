@@ -21,4 +21,6 @@ const IntegrationSchema = new Schema<IProvider>({
     provider: { type: String, enum: ['github', 'gmail', 'notion'], required: true },
 });
 
+IntegrationSchema.index({ userId: 1, provider: 1 }, { unique: true });
+
 export const Integration = model<IProvider>('Integration', IntegrationSchema);
