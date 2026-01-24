@@ -7,7 +7,7 @@ import CTA from "@/components/landing/CTA";
 import Footer from "@/components/landing/Footer";
 import { Features } from "@/components/landing/Features";
 import { Integration } from "@/components/landing/Integration";
-import { BackgroundBeams } from "@/components/ui/background-beams";
+
 
 const Landing = () => {
   return (
