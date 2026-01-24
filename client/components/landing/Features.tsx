@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-import { TracingBeam } from "../ui/tracing-beam";
 import {
   Calendar,
   CheckCircle2,
@@ -13,29 +12,41 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
+import { AnimationWrapper } from "../ui/animation-wrapper";
 
 export function Features() {
   return (
-    <TracingBeam className="w-full max-w-none my-30 mb-10 pt-px">
-      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan mb-8 absolute top-1 left-0 pl-8">
-        <Sun />
-        Start your Day
+    <div className="w-full max-w-7xl mx-auto my-16 md:my-30 mb-10 px-4">
+      <div className="md:hidden flex justify-center mb-8">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan bg-white/50 backdrop-blur-sm">
+          <Sun className="w-4 h-4" />
+          Start your Day
+        </div>
       </div>
-      {/* started here */}
-      <div className="w-full mx-auto antialiased pt-4 relative px-10 lg:px-20 rounded-[3rem] flex flex-col justify-center shadow-[inset_0_0_80px_rgba(249,126,44,0.08)] mt-32 pb-10    ">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-30 items-center mt-20 ">
-          <div>
-            <h2 className="font-instrument text-7xl font-semibold text-black/90 leading-tight mb-4">
+
+      <div className="w-full mx-auto antialiased pt-4 relative px-4 md:px-10 lg:px-20 rounded-2xl md:rounded-[3rem] flex flex-col justify-center shadow-[inset_0_0_80px_rgba(249,126,44,0.08)] mt-8 md:mt-32 pb-10">
+        <div className="hidden md:flex absolute top-10 left-10 lg:left-20">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan bg-white/50 backdrop-blur-sm">
+            <Sun className="w-4 h-4" />
+            Start your Day
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16 lg:gap-30 items-center mt-8 md:mt-20">
+          <AnimationWrapper>
+            <h2 className="font-instrument text-4xl md:text-5xl lg:text-7xl font-semibold text-black/90 leading-tight mb-4">
               Start each <br />
               day with <span className="text-[#F97E2C]">clarity</span>
             </h2>
-            <p className="font-alan text-lg text-black/60 leading-relaxed">
-              Plan your day with intention by aligning your goals, <br />
-              prioritizing tasks, and setting a realistic workload.
+            <p className="font-alan text-base md:text-lg text-black/60 leading-relaxed">
+              Plan your day with intention by aligning your goals, prioritizing
+              tasks, and setting a realistic workload.
             </p>
-          </div>
+          </AnimationWrapper>
 
-          <div className="bg-white rounded-2xl p-6 shadow-xl shadow-black/5 border border-black/5">
+          <AnimationWrapper
+            delay={0.2}
+            className="bg-white rounded-2xl p-4 md:p-6 shadow-xl shadow-black/5 border border-black/5"
+          >
             <div className="flex items-center gap-4 mb-4">
               <div className="bg-[#F97E2C]/10 p-2 rounded-lg">
                 <Calendar className="w-5 h-5 text-[#F97E2C]" />
@@ -70,11 +81,13 @@ export function Features() {
                 </div>
               ))}
             </div>
-          </div>
+          </AnimationWrapper>
         </div>
 
-        {/* Feature cards row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 justify-evenly mt-16 ">
+        <AnimationWrapper
+          delay={0.4}
+          className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-10 justify-evenly mt-8 md:mt-16"
+        >
           <FeatureCard
             title="Plan what you need to get done today, without losing focus on tomorrow"
             icon={<ListTodo className="w-5 h-5 text-[#F97E2C]" />}
@@ -87,24 +100,22 @@ export function Features() {
             title="Unify your work across your different tools and organize it"
             icon={<Target className="w-5 h-5 text-[#F97E2C]" />}
           />
-        </div>
+        </AnimationWrapper>
       </div>
 
-      {/* Badge */}
-      <div className="absolute top-[790px] left-4 pl-8 flex items-center">
-        <BeamConnector />
-        <div className="inline-flex items-center -ml-9 gap-2 px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan bg-white/50 backdrop-blur-sm z-10">
-          <Clock className="w-4 h-4" />
-          Work through your day
-        </div>
-      </div>
-      {/* Section 2: Work Through Your Day */}
-      <div className="mb-32 relative">
-        <div className="w-full mx-auto antialiased pt-4 relative px-10 lg:px-20 rounded-[3rem] flex flex-col justify-center shadow-[inset_0_0_80px_rgba(249,126,44,0.08)] mt-32 pb-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-30 items-center mt-20">
-            {/* Left: Text content */}
-
-            <div className="bg-white rounded-2xl p-6 shadow-xl shadow-black/5 border border-black/5">
+      <div className="mb-16 md:mb-32 relative">
+        <div className="w-full mx-auto antialiased pt-4 relative px-4 md:px-10 lg:px-20 rounded-2xl md:rounded-[3rem] flex flex-col justify-center shadow-[inset_0_0_80px_rgba(249,126,44,0.08)] mt-8 md:mt-32 pb-10">
+          <div className="hidden md:flex absolute top-10 left-10 lg:left-20">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan bg-white/50 backdrop-blur-sm">
+              <Clock className="w-4 h-4" />
+              Work through your day
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16 lg:gap-30 items-center mt-8 md:mt-20">
+            <AnimationWrapper
+              delay={0.2}
+              className="bg-white rounded-2xl p-4 md:p-6 shadow-xl shadow-black/5 border border-black/5 order-2 lg:order-1"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#F97E2C] to-orange-400 flex items-center justify-center">
@@ -145,23 +156,25 @@ export function Features() {
                   like the events...
                 </p>
               </div>
-            </div>
-            {/* Right: Task detail preview */}
-            <div>
-              <h2 className="font-instrument text-7xl font-semibold text-black/90 leading-tight mb-4">
+            </AnimationWrapper>
+
+            <AnimationWrapper className="order-1 lg:order-2">
+              <h2 className="font-instrument text-4xl md:text-5xl lg:text-7xl font-semibold text-black/90 leading-tight mb-4">
                 Stay <span className="text-[#F97E2C]">focused</span> and on{" "}
-                <br />
+                <br className="hidden md:block" />
                 track all day
               </h2>
-              <p className="font-alan text-lg text-black/60 leading-relaxed">
+              <p className="font-alan text-base md:text-lg text-black/60 leading-relaxed">
                 Easily adjust your daily plan without losing focus or taking on
                 too much.
               </p>
-            </div>
+            </AnimationWrapper>
           </div>
 
-          {/* Feature cards row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 justify-evenly mt-16">
+          <AnimationWrapper
+            delay={0.4}
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-10 justify-evenly mt-8 md:mt-16"
+          >
             <FeatureCard
               title="Pull in new tasks or events as you work"
               icon={<ListTodo className="w-5 h-5 text-[#F97E2C]" />}
@@ -174,36 +187,34 @@ export function Features() {
               title="Automatic reminders to help you take breaks and maintain energy"
               icon={<Coffee className="w-5 h-5 text-[#F97E2C]" />}
             />
-          </div>
+          </AnimationWrapper>
         </div>
       </div>
 
-      {/* Badge */}
-      <div className="absolute top-[1570px] left-4 pl-8  flex items-center">
-        <BeamConnector />
-        <div className="inline-flex items-center gap-2 -ml-9 px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan bg-white/50 backdrop-blur-sm z-10">
-          <Moon className="w-4 h-4" />
-          End your Day
-        </div>
-      </div>
-      {/* Section 3: End Your Day */}
-      <div className="mb-32 relative">
-        <div className="w-full mx-auto antialiased pt-4 relative px-10 lg:px-20 rounded-[3rem] flex flex-col justify-center shadow-[inset_0_0_80px_rgba(249,126,44,0.08)] mt-32 pb-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-30 items-center mt-20">
-            {/* Left: Text content */}
-            <div>
-              <h2 className="font-instrument text-7xl font-semibold text-black/90 leading-tight mb-4">
+      <div className="mb-16 md:mb-32 relative">
+        <div className="w-full mx-auto antialiased pt-4 relative px-4 md:px-10 lg:px-20 rounded-2xl md:rounded-[3rem] flex flex-col justify-center shadow-[inset_0_0_80px_rgba(249,126,44,0.08)] mt-8 md:mt-32 pb-10">
+          <div className="hidden md:flex absolute top-10 left-10 lg:left-20">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan bg-white/50 backdrop-blur-sm">
+              <Moon className="w-4 h-4" />
+              End your Day
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16 lg:gap-30 items-center mt-8 md:mt-20">
+            <AnimationWrapper>
+              <h2 className="font-instrument text-4xl md:text-5xl lg:text-7xl font-semibold text-black/90 leading-tight mb-4">
                 Reflect and <br />
                 end <span className="text-[#F97E2C]">confident</span>
               </h2>
-              <p className="font-alan text-lg text-black/60 leading-relaxed">
+              <p className="font-alan text-base md:text-lg text-black/60 leading-relaxed">
                 Review what you accomplished, celebrate your wins, and set
                 yourself up for success tomorrow.
               </p>
-            </div>
+            </AnimationWrapper>
 
-            {/* Right: Daily summary preview */}
-            <div className="bg-white rounded-2xl p-6 shadow-xl shadow-black/5 border border-black/5">
+            <AnimationWrapper
+              delay={0.2}
+              className="bg-white rounded-2xl p-4 md:p-6 shadow-xl shadow-black/5 border border-black/5"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#F97E2C] to-orange-400 flex items-center justify-center">
@@ -244,11 +255,14 @@ export function Features() {
               <p className="text-xs text-black/40 font-alan italic">
                 Great job today! You completed 80% of your planned tasks.
               </p>
-            </div>
+            </AnimationWrapper>
           </div>
 
           {/* Feature cards row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 justify-evenly mt-16">
+          <AnimationWrapper
+            delay={0.4}
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-10 justify-evenly mt-8 md:mt-16"
+          >
             <FeatureCard
               title="Review your daily accomplishments and progress"
               icon={<CheckCircle2 className="w-5 h-5 text-[#F97E2C]" />}
@@ -261,41 +275,18 @@ export function Features() {
               title="Plan tomorrow before you finish today"
               icon={<Calendar className="w-5 h-5 text-[#F97E2C]" />}
             />
-          </div>
+          </AnimationWrapper>
         </div>
       </div>
 
-      {/* Final Badge: Make Every Day Count */}
-      <div className="text-center pb-20">
-        <div className="absolute bottom-18 left-4 pl-8 flex items-center">
-          <BeamConnector />
-          <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-transparent border border-[#F97E2C]/20 text-[#F97E2C] text-sm font-medium font-alan -ml-8 -mt-1">
+      <div className="text-center pb-10 md:pb-20">
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-transparent border border-[#F97E2C]/20 text-[#F97E2C] text-sm font-medium font-alan">
             <Sun className="w-4 h-4" />
             Make every day count
           </div>
         </div>
       </div>
-    </TracingBeam>
-  );
-}
-
-function BeamConnector() {
-  return (
-    <div className="absolute top-5 -left-[80px] -translate-y-1/2 pointer-events-none">
-      {/* Actually, I'll use the exact path from TracingBeam for consistency but adjust coordinates. */}
-      <svg
-        viewBox="0 0 100 40"
-        width="100"
-        height="40"
-        className="block -mt-[8px]"
-      >
-        <path
-          d="M 80 20 L 21 20 Q 1 20 1 0"
-          fill="none"
-          stroke="#F97E2C"
-          strokeOpacity="0.36"
-        />
-      </svg>
     </div>
   );
 }
@@ -308,11 +299,13 @@ function FeatureCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl p-5 border border-black/5 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl p-4 md:p-5 border border-black/5 shadow-sm hover:shadow-md transition-shadow">
       <div className="bg-[#F97E2C]/10 w-10 h-10 rounded-lg flex items-center justify-center mb-4">
         {icon}
       </div>
-      <p className="font-alan text-md text-black/70 leading-relaxed">{title}</p>
+      <p className="font-alan text-sm md:text-md text-black/70 leading-relaxed">
+        {title}
+      </p>
     </div>
   );
 }

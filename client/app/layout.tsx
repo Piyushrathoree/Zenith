@@ -40,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${alanSans.variable} ${instrumentSerif.variable}  antialiased font-alan`}
+        className={`${alanSans.variable} ${instrumentSerif.variable} antialiased font-alan overflow-x-hidden`}
       >
         <Analytics />
         {children}

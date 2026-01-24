@@ -12,11 +12,12 @@ import {
   Calendar,
   Clock,
 } from "lucide-react";
+import { AnimationWrapper } from "../ui/animation-wrapper";
 
 export function Integration() {
   return (
     <section className="py-24 px-4 w-full max-w-7xl mx-auto -mt-20">
-      <div className="text-center mb-16 space-y-4">
+      <AnimationWrapper className="text-center mb-16 space-y-4">
         <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-full border border-[#F97E2C]/30 text-[#F97E2C] text-sm font-medium font-alan bg-white/50 backdrop-blur-sm">
           Integrations
         </div>
@@ -28,11 +29,14 @@ export function Integration() {
           Create a single, unified list of all the work you need to do, from any
           of the tools you use.
         </p>
-      </div>
+      </AnimationWrapper>
 
       <div className="space-y-6">
         {/* GitHub Card */}
-        <div className="group bg-white rounded-[2rem] p-8 md:p-12 border border-black/5 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-[#F97E2C]/5 transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-10">
+        <AnimationWrapper
+          delay={0.1}
+          className="group bg-white rounded-[2rem] p-8 md:p-12 border border-black/5 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-[#F97E2C]/5 transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-10"
+        >
           <div className="max-w-xl space-y-4 text-center md:text-left">
             <h3 className="font-instrument text-3xl font-semibold text-black/90">
               GitHub
@@ -55,10 +59,13 @@ export function Integration() {
               </div>
             </div>
           </div>
-        </div>
+        </AnimationWrapper>
 
         {/* Notion Card */}
-        <div className="group bg-white rounded-[2rem] p-8 md:p-12 border border-black/5 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-[#F97E2C]/5 transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-10">
+        <AnimationWrapper
+          delay={0.2}
+          className="group bg-white rounded-[2rem] p-8 md:p-12 border border-black/5 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-[#F97E2C]/5 transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-10"
+        >
           <div className="max-w-xl space-y-4 text-center md:text-left">
             <h3 className="font-instrument text-3xl font-semibold text-black/90">
               Notion
@@ -108,14 +115,17 @@ export function Integration() {
                 <CheckSquare className="w-6 h-6 text-black/70" />
               </div>
               <div className="p-3 rounded-xl bg-neutral-50 border border-black/5 shadow-sm">
-                <Clock/>
+                <Clock />
               </div>
             </div>
           </div>
-        </div>
+        </AnimationWrapper>
 
         {/* Email Card */}
-        <div className="group bg-white rounded-[2rem] p-8 md:p-12 border border-black/5 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-[#F97E2C]/5 transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-10">
+        <AnimationWrapper
+          delay={0.3}
+          className="group bg-white rounded-[2rem] p-8 md:p-12 border border-black/5 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-[#F97E2C]/5 transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-10"
+        >
           <div className="max-w-xl space-y-4 text-center md:text-left">
             <h3 className="font-instrument text-3xl font-semibold text-black/90">
               Email
@@ -185,7 +195,7 @@ export function Integration() {
               </div>
             </div>
           </div>
-        </div>
+        </AnimationWrapper>
       </div>
     </section>
   );

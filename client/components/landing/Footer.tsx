@@ -1,11 +1,12 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowUpRight, Star } from "lucide-react";
+import { AnimationWrapper } from "../ui/animation-wrapper";
 
 const Footer = () => {
   return (
     <footer className="w-full pt-20 pb-12 overflow-hidden border-t-4 border-white">
-      <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col items-center">
+      <AnimationWrapper className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col items-center">
         {/* Main Links */}
         <div className="flex flex-wrap justify-center items-center gap-x-8 gap-y-4 mb-8 font-medium  text-lg text-black/80">
           <Link href="#" className="hover:text-[#F97E2C] transition-colors">
@@ -58,12 +59,12 @@ const Footer = () => {
 
         {/* Big Text */}
         <div className="relative flex justify-center items-center select-none pointer-events-none -mb-16 md:-mb-24 w-full">
-          <h1 className="font-alan font-bold text-[18vw] leading-[0.8] tracking-normal mix-blend-multiply bg-linear-to-b from-black/5 to-[#F97E2C]/20 bg-clip-text text-transparent">
+          <h1 className="font-alan font-bold text-[31vw] sm:text-[20vw] md:text-[18vw] leading-[0.8] tracking-normal mix-blend-multiply bg-linear-to-b from-black/5 to-[#F97E2C]/20 bg-clip-text text-transparent">
             Zenith
           </h1>
           <div className="absolute inset-0 bg-linear-to-t from-white via-transparent to-transparent h-20 bottom-0 top-auto" />
         </div>
-      </div>
+      </AnimationWrapper>
     </footer>
   );
 };
