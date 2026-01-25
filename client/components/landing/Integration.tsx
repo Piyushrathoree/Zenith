@@ -3,13 +3,9 @@ import {
   Github,
   GitPullRequest,
   CircleDot,
-  FileText,
   CheckSquare,
-  Layout,
-  Mail,
   Inbox,
   Send,
-  Calendar,
   Clock,
 } from "lucide-react";
 import { AnimationWrapper } from "../ui/animation-wrapper";

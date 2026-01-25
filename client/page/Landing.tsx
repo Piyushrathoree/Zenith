@@ -8,10 +8,9 @@ import Footer from "@/components/landing/Footer";
 import { Features } from "@/components/landing/Features";
 import { Integration } from "@/components/landing/Integration";
 
-
 const Landing = () => {
   return (
-    <div className="relative min-h-screen font-alan w-full overflow-x-hidden px-4 sm:px-6 md:px-[6%] lg:px-[10%] bg-linear-to-br from-[#F97E2C]/5 via-transparent to-[#F97E2C]/10">
+    <div className="relative min-h-screen font-alan w-full px-4 sm:px-6 md:px-[6%] lg:px-[10%] bg-linear-to-br from-[#F97E2C]/5 via-transparent to-[#F97E2C]/10">
       <Header />
       <Reveal width="100%">
         <Hero />

@@ -6,7 +6,7 @@ import { AnimationWrapper } from "../ui/animation-wrapper";
 
 const Hero = () => {
   return (
-    <div className="z-50 relative flex min-h-screen flex-col items-center justify-center gap-12 md:gap-24 overflow-hidden pb-20">
+    <div className="z-50 relative w-full flex  flex-col items-center justify-center gap-12 md:gap-24 overflow-hidden pb-20 ">
       <h1 className="z-50 -mt-30 md:mt-20 text-center font-instrument text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-semibold tracking-wider text-black/90 flex flex-col items-center">
         <AnimationWrapper>
           <div className="inline-flex items-center gap-2 px-3 md:px-4 py-1.5 rounded-full bg-[#F97E2C]/10 text-[#F97E2C] text-xs md:text-sm font-medium font-alan tracking-normal mb-4">
