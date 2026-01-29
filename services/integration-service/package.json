@@ -13,11 +13,13 @@
   },
   "dependencies": {
     "@types/crypto-js": "^4.2.2",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.9",
     "crypto-js": "^4.2.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "googleapis": "^170.1.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.5",
     "zod": "^4.3.5"
   }
