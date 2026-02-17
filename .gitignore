@@ -29,8 +29,13 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+
 # turbo
 .turbo
 
 # ui
 dist/
+
+
+# services (microservices code)
+services/
