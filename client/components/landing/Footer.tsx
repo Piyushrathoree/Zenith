@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { AnimationWrapper } from "../ui/animation-wrapper";
 import { Button } from "../ui/button";
@@ -27,7 +27,9 @@ const linkGroups = [
   },
 ];
 
-const columnVariants = {
+const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+const columnVariants: Variants = {
   hidden: { opacity: 0, y: 16 },
   visible: (i: number) => ({
     opacity: 1,
@@ -35,7 +37,7 @@ const columnVariants = {
     transition: {
       delay: 0.08 * i,
       duration: 0.45,
-      ease: [0.22, 1, 0.36, 1],
+      ease: easeOut,
     },
   }),
 };
@@ -82,7 +84,7 @@ const Footer = () => {
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.5, ease: easeOut }}
               className="flex flex-col justify-between gap-8"
             >
               <div>
