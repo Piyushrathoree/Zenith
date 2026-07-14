@@ -1,32 +1,34 @@
 import Header from "@/components/landing/Header";
-import { Reveal } from "@/components/ui/reveal";
 import Hero from "@/components/landing/Hero";
-import CTA from "@/components/landing/CTA";
-// import Pricing from "@/components/landing/Pricing";
-// import Testimonial from "@/components/landing/Testimonial";
-import Footer from "@/components/landing/Footer";
+import { BentoShowcase } from "@/components/landing/BentoShowcase";
 import { Features } from "@/components/landing/Features";
+import { Rhythm } from "@/components/landing/Rhythm";
 import { Integration } from "@/components/landing/Integration";
+import { Testimonial } from "@/components/landing/Testimonial";
+import { FAQ } from "@/components/landing/FAQ";
+import { Pricing } from "@/components/landing/Pricing";
+import CTA from "@/components/landing/CTA";
+import Footer from "@/components/landing/Footer";
 
 const Landing = () => {
   return (
-    <div className="relative min-h-screen font-alan w-full px-4 sm:px-6 md:px-[6%] lg:px-[10%] bg-linear-to-br from-[#F97E2C]/5 via-transparent to-[#F97E2C]/10">
+    <div className="relative min-h-screen w-full bg-muted/50 font-alan text-foreground">
       <Header />
-      <Reveal width="100%">
-        <Hero />
-      </Reveal>
-      <Reveal width="100%">
-        <Features />
-      </Reveal>
-      <Reveal width="100%">
-        <Integration />
-      </Reveal>
-      <Reveal width="100%">
-        <CTA />
-      </Reveal>
-      <Reveal width="100%">
+      {/* Framed content column: hairline rails down both sides of the page */}
+      <div className="mx-auto w-full max-w-[78rem] border-x border-border bg-background">
+        <main>
+          <Hero />
+          <BentoShowcase />
+          <Features />
+          <Rhythm />
+          <Integration />
+          <Testimonial />
+          <FAQ />
+          <Pricing />
+          <CTA />
+        </main>
         <Footer />
-      </Reveal>
+      </div>
     </div>
   );
 };

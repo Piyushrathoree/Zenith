@@ -1,53 +1,45 @@
+"use client";
 import React from "react";
-import { Button } from "../ui/button";
+import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { Button } from "../ui/button";
 import { AnimationWrapper } from "../ui/animation-wrapper";
 
 const CTA = () => {
   return (
-    <section className="relative py-32 overflow-hidden">
-      {/* Background gradient */}
-      <div className="absolute inset-0 " />
+    <section className="border-t border-border bg-background py-24 md:py-32">
+      <AnimationWrapper className="mx-auto max-w-4xl px-6">
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-paper px-6 py-16 text-center shadow-inset-soft md:px-12 md:py-20">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-inset-soft">
+            <Sparkles className="h-3 w-3 text-brand" />
+            Ready when you are
+          </span>
 
-      {/* Decorative blur */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#F97E2C]/20 blur-3xl rounded-full opacity-30" />
+          <h2 className="mt-5 font-instrument text-4xl font-semibold leading-[1.05] tracking-tight text-foreground text-shadow-soft md:text-5xl">
+            Start your first calm day.
+          </h2>
 
-      <AnimationWrapper className="relative z-10 max-w-4xl mx-auto text-center px-6">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F97E2C]/10 text-[#F97E2C] text-sm font-medium mb-8">
-          <Sparkles className="w-4 h-4" />
-          Start your journey today
+          <p className="mx-auto mt-4 max-w-md text-base text-muted-foreground md:text-lg">
+            Plan it, focus through it, and end it in control. Setup takes
+            about five minutes.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Button variant="brand" size="lg" asChild>
+              <Link href="/signup">
+                Start for free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="lg" asChild>
+              <Link href="#features">See how it works</Link>
+            </Button>
+          </div>
+
+          <p className="mt-5 text-xs text-muted-foreground">
+            Free plan available · 7 day Pro trial · No card needed.
+          </p>
         </div>
-
-        {/* Heading */}
-        <h2 className="font-instrument text-5xl md:text-6xl lg:text-7xl font-semibold tracking-wide text-black/90 mb-6">
-          Ready to Transform <br className="hidden md:block" />
-          Your Productivity?
-        </h2>
-
-        {/* Subheading */}
-        <p className="font-alan text-lg md:text-xl text-black/60 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Join thousands of professionals who have already discovered the calm,
-          focused way to manage their tasks and achieve their goals.
-        </p>
-
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button className="bg-[#F97E2C] text-white hover:bg-[#F97E2C]/90 text-lg p-6  px-10 rounded-2xl font-alan group">
-            Get Started Free
-          </Button>
-          <Button
-            variant="outline"
-            className="text-lg p-6 px-10 rounded-2xl font-alan border-black/20 "
-          >
-            Schedule a Demo
-          </Button>
-        </div>
-
-        {/* Trust indicators */}
-        <p className="mt-8 text-sm text-black/40 font-alan">
-          No credit card required • Free 14-day trial • Cancel anytime
-        </p>
       </AnimationWrapper>
     </section>
   );

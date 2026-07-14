@@ -33,6 +33,14 @@
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-sunken: var(--surface-sunken);
   --color-tag-work: var(--tag-work);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  /* Landing: warm paper wash + soft accent tints (used only on the marketing page) */
+  --color-paper: var(--paper);
+  --color-work-soft: var(--work-soft);
+  --color-personal-soft: var(--personal-soft);
+  --color-health-soft: var(--health-soft);
+  --color-brand-soft: var(--brand-soft);
   --color-tag-personal: var(--tag-personal);
   --color-tag-health: var(--tag-health);
   --color-status-open: var(--status-open);
@@ -87,6 +95,15 @@
   --surface-elevated: oklch(1 0 0);
   --surface-sunken: oklch(0.97 0 0);
   --tag-work: oklch(0.65 0.18 55);
+  /* Brand accent — matches logo.svg (#F97E2C) */
+  --brand: #F97E2C;
+  --brand-foreground: oklch(0.985 0 0);
+  /* Landing accents */
+  --paper: #fbfaf8;
+  --work-soft: oklch(0.95 0.04 55);
+  --personal-soft: oklch(0.95 0.035 240);
+  --health-soft: oklch(0.95 0.04 150);
+  --brand-soft: #FFF1E8;
   --tag-personal: oklch(0.6 0.15 240);
   --tag-health: oklch(0.55 0.15 145);
   --status-open: oklch(0.55 0.15 145);
@@ -134,6 +151,14 @@
   --surface-elevated: oklch(0.14 0 0);
   --surface-sunken: oklch(0.08 0 0);
   --tag-work: oklch(0.7 0.15 55);
+  --brand: #F97E2C;
+  --brand-foreground: oklch(0.205 0 0);
+  /* Landing accents (dark) */
+  --paper: oklch(0.17 0 0);
+  --work-soft: oklch(0.28 0.05 55);
+  --personal-soft: oklch(0.28 0.045 240);
+  --health-soft: oklch(0.28 0.05 150);
+  --brand-soft: oklch(0.28 0.055 50);
   --tag-personal: oklch(0.65 0.15 240);
   --tag-health: oklch(0.6 0.15 145);
   --status-open: oklch(0.6 0.15 145);
@@ -303,5 +328,62 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* Craft utilities: soft depth, inner shadows, and text shadows used across the marketing page */
+@layer utilities {
+  .text-shadow-soft {
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  }
+
+  .text-shadow-sm {
+    text-shadow: 0 1px 1px rgb(0 0 0 / 0.06);
+  }
+
+  /* Elevated surface: a soft outer shadow plus a faint inner top highlight */
+  .shadow-soft {
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.04),
+      0 14px 34px -14px rgb(0 0 0 / 0.14);
+  }
+
+  .shadow-inset-soft {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.7),
+      inset 0 0 0 1px rgb(0 0 0 / 0.015),
+      0 1px 2px 0 rgb(0 0 0 / 0.05),
+      0 10px 26px -16px rgb(0 0 0 / 0.12);
+  }
+
+  /* Sunken track: a gentle recessed inner shadow for inner panels and rails */
+  .inset-sunken {
+    box-shadow: inset 0 1px 3px 0 rgb(0 0 0 / 0.06);
+  }
+
+  .dark .text-shadow-soft {
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+  }
+
+  .dark .text-shadow-sm {
+    text-shadow: 0 1px 1px rgb(0 0 0 / 0.4);
+  }
+
+  .dark .shadow-soft {
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.3),
+      0 14px 34px -14px rgb(0 0 0 / 0.55);
+  }
+
+  .dark .shadow-inset-soft {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.06),
+      inset 0 0 0 1px rgb(255 255 255 / 0.02),
+      0 1px 2px 0 rgb(0 0 0 / 0.3),
+      0 10px 26px -16px rgb(0 0 0 / 0.5);
+  }
+
+  .dark .inset-sunken {
+    box-shadow: inset 0 1px 3px 0 rgb(0 0 0 / 0.3);
   }
 }

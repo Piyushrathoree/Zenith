@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 
 export default function Page() {
   const [queryClient] = useState(() => new QueryClient());
@@ -13,7 +14,9 @@ export default function Page() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <DashboardLayout />
+        <RequireAuth>
+          <DashboardLayout />
+        </RequireAuth>
         <Toaster />
         <Sonner />
       </TooltipProvider>

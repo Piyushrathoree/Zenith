@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Home,
   Calendar,
@@ -7,12 +8,35 @@ import {
   ChevronRight,
   CalendarCheck,
   TrendingUp,
+  Copy,
+  Mail,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { WeeklyRitualsPanel } from "./panels/WeeklyRitualsPanel";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ZenithLogo } from "@/components/brand/ZenithLogo";
+
+// There is no invite backend yet, so this is a lightweight placeholder:
+// it lets the user copy a canned invite message or open their mail client.
+// Follow-up: replace with a real invite flow once an invites API exists.
+const INVITE_MESSAGE =
+  "Join me on Zenith, a calm way to plan and manage your day: https://zenith.piyushh.me";
+
 export function LeftSidebar() {
+  const router = useRouter();
   const {
     setShowTodayPanel,
     setShowDailyPlanner,
@@ -23,12 +47,23 @@ export function LeftSidebar() {
     weeklyRitualType,
     focusMode,
   } = useApp();
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+
+  const handleCopyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(INVITE_MESSAGE);
+      toast.success("Invite message copied");
+    } catch {
+      toast.error("Could not copy the invite message");
+    }
+  };
+
   const navItems = [
     {
       icon: Home,
       label: "Home",
       active: false,
-      onClick: () => {},
+      onClick: () => router.push("/dashboard"),
     },
     {
       icon: Calendar,
@@ -82,11 +117,9 @@ export function LeftSidebar() {
         {/* User Profile */}
         <div className="p-4 border-b border-border">
           <button className="flex items-center gap-3 w-full hover:bg-muted rounded-lg p-2 transition-colors">
-            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
-              <span className="text-accent font-semibold text-sm">​Z</span>
-            </div>
+            <ZenithLogo variant="mark" className="h-10 w-10" />
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-foreground">​Zenith</p>
+              <p className="text-sm font-medium text-foreground">Zenith</p>
             </div>
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
           </button>
@@ -173,12 +206,44 @@ export function LeftSidebar() {
 
         {/* Invite Button */}
         <div className="p-4 border-t border-border">
-          <button className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg border border-border hover:bg-muted transition-colors">
-            <UserPlus className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              Invite someone
-            </span>
-          </button>
+          <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+            <DialogTrigger asChild>
+              <button className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg border border-border hover:bg-muted transition-colors">
+                <UserPlus className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Invite someone
+                </span>
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Invite someone to Zenith</DialogTitle>
+                <DialogDescription>
+                  There is no invite system yet, so share Zenith the simple way for now:
+                  copy the message below or send it by email.
+                </DialogDescription>
+              </DialogHeader>
+              <p className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
+                {INVITE_MESSAGE}
+              </p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={handleCopyInvite}>
+                  <Copy className="w-4 h-4" />
+                  Copy message
+                </Button>
+                <Button type="button" asChild>
+                  <a
+                    href={`mailto:?subject=${encodeURIComponent(
+                      "Join me on Zenith"
+                    )}&body=${encodeURIComponent(INVITE_MESSAGE)}`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    Email invite
+                  </a>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </aside>
 

@@ -3,6 +3,7 @@ import { X, Calendar, ListChecks, TrendingUp, Target, Clock, Sparkles } from 'lu
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { useStore } from '@/store/useStore';
 
 interface WeeklyRitualsPanelProps {
   isOpen: boolean;
@@ -10,27 +11,25 @@ interface WeeklyRitualsPanelProps {
   type: 'planning' | 'review';
 }
 
-interface WeeklyGoal {
-  id: string;
-  title: string;
-  progress: number;
-  target: number;
-}
-
+// Goals/priorities now live in the Zustand store (see the WeeklyGoal slice
+// in store/useStore.ts) instead of a local useState, so they stay
+// consistent for the session and across remounts of this panel. There is
+// still no backend "rituals" model, so none of this survives a full page
+// reload or syncs across devices yet - that needs a future backend model,
+// this is a client-only, in-session improvement.
 export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanelProps) {
-  const [goals, setGoals] = useState<WeeklyGoal[]>([
-    { id: '1', title: 'Complete project milestones', progress: 3, target: 5 },
-    { id: '2', title: 'Exercise sessions', progress: 2, target: 4 },
-    { id: '3', title: 'Read for 30 minutes', progress: 5, target: 7 },
-  ]);
+  const goals = useStore((state) => state.weeklyGoals);
+  const priorities = useStore((state) => state.weeklyPriorities);
+  const addWeeklyGoal = useStore((state) => state.addWeeklyGoal);
+  const updateWeeklyGoalProgress = useStore((state) => state.updateWeeklyGoalProgress);
+  const addWeeklyPriority = useStore((state) => state.addWeeklyPriority);
+  const removeWeeklyPriority = useStore((state) => state.removeWeeklyPriority);
+
+  // Uncommitted input text stays local - only the committed goals/
+  // priorities themselves need to live in the shared store.
   const [newGoal, setNewGoal] = useState('');
-  const [priorities, setPriorities] = useState<string[]>([
-    'Finish Q4 report',
-    'Team sync meeting',
-    'Review pull requests',
-  ]);
   const [newPriority, setNewPriority] = useState('');
-  
+
   const weekStart = startOfWeek(new Date());
   const weekEnd = endOfWeek(new Date());
 
@@ -38,29 +37,20 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
 
   const handleAddGoal = () => {
     if (newGoal.trim()) {
-      setGoals(prev => [...prev, {
-        id: Date.now().toString(),
-        title: newGoal,
-        progress: 0,
-        target: 5,
-      }]);
+      addWeeklyGoal(newGoal);
       setNewGoal('');
     }
   };
 
   const handleAddPriority = () => {
     if (newPriority.trim()) {
-      setPriorities(prev => [...prev, newPriority]);
+      addWeeklyPriority(newPriority);
       setNewPriority('');
     }
   };
 
   const updateGoalProgress = (id: string, increment: number) => {
-    setGoals(prev => prev.map(goal =>
-      goal.id === id 
-        ? { ...goal, progress: Math.max(0, Math.min(goal.target, goal.progress + increment)) }
-        : goal
-    ));
+    updateWeeklyGoalProgress(id, increment);
   };
 
   return (
@@ -213,7 +203,7 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
                       </span>
                       <span className="text-sm text-foreground flex-1">{priority}</span>
                       <button
-                        onClick={() => setPriorities(prev => prev.filter((_, i) => i !== idx))}
+                        onClick={() => removeWeeklyPriority(idx)}
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all"
                       >
                         <X className="w-4 h-4 text-destructive" />

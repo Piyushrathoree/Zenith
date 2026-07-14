@@ -1,8 +1,14 @@
 "use client";
 import React, { useState } from "react";
+import Link from "next/link";
 import { Button } from "../ui/button";
 import { Menu, X } from "lucide-react";
-import Image from "next/image";
+import { ZenithLogo } from "@/components/brand/ZenithLogo";
+
+const navLinks = [
+  { label: "Features", href: "#features" },
+  { label: "Pricing", href: "#pricing" },
+];
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -20,69 +26,71 @@ const Header = () => {
 
   return (
     <>
-      <header className="z-100 h-[70px] flex items-center justify-between px-4 md:px-[8%] lg:px-[15%]">
-        <div className="flex items-center gap-5">
-          <Image src="/assets/logo.svg" alt="logo" width={100} height={100} />
-        </div>
+      <header className="sticky top-0 z-50 h-14 md:h-16 border-b border-border bg-background/80 shadow-[0_1px_0_0_rgb(0_0_0_/_0.02)] backdrop-blur-md">
+        <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-6">
+          <ZenithLogo href="/" />
 
-        <div className="hidden md:flex items-center gap-8">
-          <div>Features</div>
-          <div>How it works</div>
-          <div>Testimonials</div>
-          <div>Pricing</div>
-        </div>
+          <nav className="hidden md:flex items-center gap-8">
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
 
-        <div className="hidden md:flex items-center gap-1">
-          <Button
-            variant="ghost"
-            className="bg-transparent hover:bg-[#F97E2C]/10"
+          <div className="hidden md:flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/login">Log in</Link>
+            </Button>
+            <Button variant="brand" size="sm" asChild>
+              <Link href="/signup">Start for free</Link>
+            </Button>
+          </div>
+
+          <button
+            className="rounded-lg p-2 text-foreground transition-colors hover:bg-muted md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
           >
-            Login
-          </Button>
-          <Button className="bg-[#F97E2C] text-white hover:bg-[#F97E2C]/90">
-            Start for Free
-          </Button>
+            {mobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </button>
         </div>
-
-        <button
-          className="md:hidden p-2 hover:bg-[#F97E2C]/10 rounded-lg transition-colors"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileMenuOpen ? (
-            <X className="w-6 h-6" />
-          ) : (
-            <Menu className="w-6 h-6" />
-          )}
-        </button>
       </header>
 
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-[70px] bg-white z-[120] animate-fade-in border-t border-black/5">
-          <div className="flex flex-col items-center gap-6 pt-8 px-6">
-            <div className="flex flex-col items-center gap-4 text-lg font-medium text-black/80">
-              <div className="py-2 hover:text-[#F97E2C] transition-colors">
-                Features
-              </div>
-              <div className="py-2 hover:text-[#F97E2C] transition-colors">
-                How it works
-              </div>
-              <div className="py-2 hover:text-[#F97E2C] transition-colors">
-                Testimonials
-              </div>
-              <div className="py-2 hover:text-[#F97E2C] transition-colors">
-                Pricing
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 w-full max-w-xs mt-4">
-              <Button
-                variant="ghost"
-                className="bg-orange-100/2  0 hover:bg-orange-100/40 w-full"
-              >
-                Login
+        <div className="fixed inset-0 top-14 z-40 border-t border-border bg-background md:hidden">
+          <div className="flex flex-col items-center gap-6 px-6 pt-10">
+            <nav className="flex flex-col items-center gap-5 text-base">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+            <div className="flex w-full max-w-xs flex-col gap-3 pt-2">
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                  Log in
+                </Link>
               </Button>
-              <Button className="bg-[#F97E2C] text-white hover:bg-[#F97E2C]/90 w-full">
-                Start for Free
+              <Button variant="brand" className="w-full" asChild>
+                <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
+                  Start for free
+                </Link>
               </Button>
             </div>
           </div>

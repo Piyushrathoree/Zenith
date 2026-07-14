@@ -2,13 +2,36 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Circle, CheckCircle2, Play, Github, ExternalLink } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { format } from 'date-fns';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { GitHubIssue } from '@/types';
 
 export function TaskDetailModal() {
   const { selectedTask, showTaskModal, setShowTaskModal, updateTask } = useApp();
 
+  // Controlled copy of the notes field so edits can be saved on blur - a
+  // plain defaultValue textarea never wrote anything back to the store, so
+  // notes edits were silently lost on close/reload. `notesTaskId` tracks
+  // which task `notes` was last synced from; when a different task opens,
+  // state is re-synced right here during render (the React-recommended
+  // "adjusting state when a prop changes" pattern) instead of in a
+  // useEffect, so the textarea always starts in sync with the task that is
+  // currently shown without an extra render-then-effect round trip.
+  const [notes, setNotes] = useState(selectedTask?.notes ?? '');
+  const [notesTaskId, setNotesTaskId] = useState(selectedTask?.id);
+
+  if (selectedTask && selectedTask.id !== notesTaskId) {
+    setNotesTaskId(selectedTask.id);
+    setNotes(selectedTask.notes ?? '');
+  }
+
   if (!showTaskModal || !selectedTask) return null;
+
+  const saveNotes = () => {
+    if (notes !== (selectedTask.notes ?? '')) {
+      updateTask(selectedTask.id, { notes });
+    }
+  };
 
   const githubIssue = selectedTask.source === 'github' 
     ? selectedTask.sourceData as GitHubIssue 
@@ -89,6 +112,12 @@ export function TaskDetailModal() {
               <div className="flex items-center gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">ACTUAL</span>
+                  {/* Hardcoded placeholder - there is no time tracking model
+                      on the backend yet, so there is nothing real to show
+                      here. The Play button below is likewise inert. Wiring
+                      these up needs a future time-tracking backend
+                      (start/stop timer entries persisted per task); left as
+                      future work for this pass. */}
                   <p className="font-medium">--:--</p>
                 </div>
                 <div>
@@ -105,7 +134,9 @@ export function TaskDetailModal() {
             <div>
               <textarea
                 placeholder="Notes..."
-                defaultValue={selectedTask.notes}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={saveNotes}
                 className="w-full min-h-[100px] bg-transparent border-none outline-none resize-none text-muted-foreground placeholder:text-muted-foreground/50"
               />
             </div>

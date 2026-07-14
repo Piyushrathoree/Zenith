@@ -9,15 +9,18 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(0_0_0_/_0.25),inset_0_1px_0_rgb(255_255_255_/_0.12)] hover:bg-primary/90 hover:shadow-[0_2px_6px_rgb(0_0_0_/_0.22),inset_0_1px_0_rgb(255_255_255_/_0.14)] active:translate-y-px active:shadow-[0_1px_1px_rgb(0_0_0_/_0.2)]",
+        brand:
+          "bg-brand text-brand-foreground shadow-[0_1px_2px_rgb(0_0_0_/_0.18),inset_0_1px_0_rgb(255_255_255_/_0.25)] hover:bg-brand/90 hover:shadow-[0_2px_6px_rgb(0_0_0_/_0.16),inset_0_1px_0_rgb(255_255_255_/_0.3)] active:translate-y-px active:shadow-[0_1px_1px_rgb(0_0_0_/_0.14)]",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white shadow-[0_1px_2px_rgb(0_0_0_/_0.18)] hover:bg-destructive/90 hover:shadow-[0_2px_5px_rgb(0_0_0_/_0.16)] active:translate-y-px focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-border bg-card text-foreground shadow-[0_1px_2px_rgb(0_0_0_/_0.05),inset_0_1px_0_rgb(255_255_255_/_0.55)] hover:bg-muted/70 hover:shadow-[0_2px_5px_rgb(0_0_0_/_0.07),inset_0_1px_0_rgb(255_255_255_/_0.6)] active:translate-y-px dark:bg-card/70 dark:hover:bg-muted/50",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground shadow-[0_1px_2px_rgb(0_0_0_/_0.03)] hover:bg-secondary/80",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+          "border border-border/80 bg-card/90 text-foreground shadow-[0_1px_2px_rgb(0_0_0_/_0.04),inset_0_1px_0_rgb(255_255_255_/_0.45)] hover:bg-muted/70 hover:border-border hover:shadow-[0_2px_5px_rgb(0_0_0_/_0.06),inset_0_1px_0_rgb(255_255_255_/_0.55)] active:translate-y-px dark:bg-card/50 dark:hover:bg-muted/45",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

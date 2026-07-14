@@ -12,11 +12,16 @@ const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument",
   subsets: ["latin"],
   weight: "400",
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
   title: "Zenith | The calm way to manage your day",
   description: "Start Calm. Stay Focused. End Confident",
+  icons: {
+    icon: "/logo.svg",
+    apple: "/logo.svg",
+  },
   openGraph: {
     title: "Zenith | The calm way to manage your day",
     description: "Start Calm. Stay Focused. End Confident",
