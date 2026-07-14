@@ -3,6 +3,7 @@ import React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { AnimationWrapper } from "../ui/animation-wrapper";
+import { NotionMark } from "@/components/brand/NotionMark";
 
 const integrations = [
   {
@@ -20,10 +21,10 @@ const integrations = [
   {
     name: "Notion",
     description: "Pages and docs show up beside everything else.",
-    icon: "/integrations/notion.svg",
+    icon: null,
     iconClassName: "",
   },
-];
+] as const;
 
 export const Integration = () => {
   return (
@@ -63,13 +64,17 @@ export const Integration = () => {
                 />
                 <div className="relative z-10 flex h-full flex-col items-center">
                 <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-border/60 bg-background shadow-inset-soft">
-                  <Image
-                    src={item.icon}
-                    alt={`${item.name} logo`}
-                    width={56}
-                    height={56}
-                    className={`h-14 w-14 object-contain ${item.iconClassName}`}
-                  />
+                  {item.icon ? (
+                    <Image
+                      src={item.icon}
+                      alt={`${item.name} logo`}
+                      width={56}
+                      height={56}
+                      className={`h-14 w-14 object-contain ${item.iconClassName}`}
+                    />
+                  ) : (
+                    <NotionMark />
+                  )}
                 </div>
                 <h3 className="mt-5 text-base font-medium text-foreground">
                   {item.name}
