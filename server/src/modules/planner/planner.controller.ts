@@ -10,7 +10,7 @@ import { ApiResponse } from '../../utils/ApiResponse.ts';
 // ════════════════════════════════════════════════════════
 
 export const createTask = async (req: Request, res: Response): Promise<void> => {
-    const { taskDescription, due, status, notes } = req.body;
+    const { taskDescription, due, status, notes, duration, startTime } = req.body;
     const { channel } = req.params;
 
     if (!taskDescription) {
@@ -24,6 +24,8 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
         start: new Date(),
         due,
         notes,
+        duration,
+        startTime,
         userId: req.userId,
         channel: channel || 'work',
     });
@@ -43,13 +45,29 @@ export const getTasksByChannel = async (req: Request, res: Response): Promise<vo
     res.status(200).json(new ApiResponse(200, tasks, 'Tasks fetched successfully'));
 };
 
+// Single-task fetch, scoped to the requesting user.
+// Mounted at GET /tasks/id/:taskId (see planner.routes.ts) rather than GET /tasks/:taskId
+// to avoid ambiguity with the existing GET /tasks/:channel route, since both would
+// otherwise occupy the same one-segment path after /tasks.
+export const getTaskById = async (req: Request, res: Response): Promise<void> => {
+    const { taskId } = req.params;
+
+    const task = await Task.findOne({ _id: taskId, userId: req.userId });
+    if (!task) {
+        res.status(404).json(new ApiError(404, 'Task not found'));
+        return;
+    }
+
+    res.status(200).json(new ApiResponse(200, task, 'Task fetched successfully'));
+};
+
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
     const { taskId } = req.params;
-    const { status, taskDescription, notes, due } = req.body;
+    const { status, taskDescription, notes, due, channel, duration, startTime } = req.body;
 
     const task = await Task.findOneAndUpdate(
         { _id: taskId, userId: req.userId },
-        { status, taskDescription, notes, due },
+        { status, taskDescription, notes, due, channel, duration, startTime },
         { new: true, runValidators: true }
     );
 
@@ -99,6 +117,41 @@ export const createChannel = async (req: Request, res: Response): Promise<void> 
     await channel.save();
 
     res.status(201).json(new ApiResponse(201, channel, 'Channel created successfully'));
+};
+
+export const updateChannel = async (req: Request, res: Response): Promise<void> => {
+    const { channelId } = req.params;
+    const { name, channelDescription } = req.body;
+
+    const channel = await Channel.findOneAndUpdate(
+        { _id: channelId, userId: req.userId },
+        { name, channelDescription },
+        { new: true, runValidators: true }
+    );
+
+    if (!channel) {
+        res.status(404).json(new ApiError(404, 'Channel not found'));
+        return;
+    }
+
+    res.status(200).json(new ApiResponse(200, channel, 'Channel updated successfully'));
+};
+
+export const deleteChannel = async (req: Request, res: Response): Promise<void> => {
+    const { channelId } = req.params;
+
+    const channel = await Channel.findOneAndDelete({ _id: channelId, userId: req.userId });
+    if (!channel) {
+        res.status(404).json(new ApiError(404, 'Channel not found'));
+        return;
+    }
+
+    // Orphan behavior: tasks reference channels by their string name, not by id,
+    // and are intentionally NOT cascade-deleted or reassigned here. Deleting a
+    // channel leaves existing tasks with a `channel` value that no longer matches
+    // any Channel document. They remain fully accessible via GET /tasks and
+    // GET /tasks/id/:taskId, just not via GET /tasks/:channel for the deleted name.
+    res.status(200).json(new ApiResponse(200, null, 'Channel deleted successfully'));
 };
 
 // ════════════════════════════════════════════════════════

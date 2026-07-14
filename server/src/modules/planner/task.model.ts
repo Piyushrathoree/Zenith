@@ -12,6 +12,8 @@ export interface ITask extends Document {
     due?: Date;
     status: 'todo' | 'not_started' | 'in_progress' | 'done';
     notes?: string;
+    duration?: string;   // planned duration, e.g. "1:00" — kept as a string to match the client
+    startTime?: string;  // optional "HH:mm" time of day the task is scheduled to start
 }
 
 const taskSchema = new Schema<ITask>({
@@ -26,6 +28,8 @@ const taskSchema = new Schema<ITask>({
     start: { type: Date },
     due: { type: Date },
     notes: { type: String },
+    duration: { type: String },
+    startTime: { type: String },
 });
 
 export const Task = model<ITask>('Task', taskSchema);

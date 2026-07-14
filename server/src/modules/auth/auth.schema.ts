@@ -47,3 +47,12 @@ export const ChangePasswordSchema = z.object({
     oldPassword: z.string().min(1, 'Old password is required'),
     newPassword: passwordSchema,
 });
+
+export const VerifyEmailSchema = z.object({
+    email: emailSchema,
+    code: z.string().min(1, 'Verification code is required'),
+});
+
+export const ResendVerificationSchema = z.object({
+    email: emailSchema,
+});
