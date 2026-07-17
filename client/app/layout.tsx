@@ -44,6 +44,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+    <head> <Script
+  defer
+  src="https://t.raah.dev/script.js"
+  data-pid="proj_5smmgmdw39by6a0g"
+  data-domain="app-zenith-git-main-piyushrathorees-projects.vercel.app"
+             strategy="afterInteractive"
+/>
+    </head>
       <body
         className={`${alanSans.variable} ${instrumentSerif.variable} antialiased font-alan`}
       >
