@@ -9,6 +9,8 @@ export interface Task {
   notes?: string;
   source?: 'github' | 'gmail' | 'notion';
   sourceData?: GitHubIssue | GmailMessage | NotionPage;
+  externalId?: string;
+  link?: string;
 }
 
 export interface GitHubIssue {
@@ -24,6 +26,10 @@ export interface GitHubIssue {
   labels: { name: string; color: string }[];
   assignees: { login: string; avatar_url: string }[];
   url: string;
+  /** The server's original UniversalTask.externalId, untouched. The numeric
+   * `id` above is only a display id / React key and may be a synthesised
+   * fallback, so provenance sent back to the server must come from here. */
+  externalId?: string;
 }
 
 export interface GitHubPR {
@@ -38,6 +44,10 @@ export interface GitHubPR {
   createdAt: string;
   labels: { name: string; color: string }[];
   url: string;
+  /** The server's original UniversalTask.externalId, untouched. The numeric
+   * `id` above is only a display id / React key and may be a synthesised
+   * fallback, so provenance sent back to the server must come from here. */
+  externalId?: string;
 }
 
 export interface GmailMessage {
@@ -49,6 +59,12 @@ export interface GmailMessage {
   snippet: string;
   date: string;
   unread: boolean;
+  /** The server's original UniversalTask.externalId, untouched. */
+  externalId?: string;
+  /** The message's direct link, from UniversalTask.link. Gmail is the only
+   * one of the four view types with no `url` field, so this is the place
+   * to carry it instead of synthesising a link by hand elsewhere. */
+  link?: string;
 }
 
 export interface NotionPage {
@@ -58,6 +74,8 @@ export interface NotionPage {
   workspace: string;
   lastEdited: string;
   url: string;
+  /** The server's original UniversalTask.externalId, untouched. */
+  externalId?: string;
 }
 
 export interface DailyTask {

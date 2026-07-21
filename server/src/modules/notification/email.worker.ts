@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { env } from '../../config/env.ts';
+import { getRedisOptions } from '../../config/redis.ts';
 import { sendVerificationCode, sendWelcomeMail, sendForgotPasswordMail } from './mail.ts';
 import type { EmailJobData } from './mail.ts';
 
@@ -33,7 +33,7 @@ export const startEmailWorker = (): void => {
             }
         },
         {
-            connection: { host: env.REDIS_HOST, port: env.REDIS_PORT },
+            connection: getRedisOptions(),
             concurrency: 5, // process up to 5 emails at once
         }
     );

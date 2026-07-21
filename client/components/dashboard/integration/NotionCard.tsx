@@ -1,7 +1,7 @@
 import { NotionPage } from '@/types';
 import { motion } from 'framer-motion';
 import { FileText, Clock } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { safeFormatDistanceToNow } from '@/lib/formatDate';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
@@ -54,7 +54,7 @@ export function NotionCard({ page }: NotionCardProps) {
           </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>Edited {formatDistanceToNow(new Date(page.lastEdited), { addSuffix: true })}</span>
+            <span>Edited {safeFormatDistanceToNow(page.lastEdited, { addSuffix: true })}</span>
           </div>
         </div>
       </div>

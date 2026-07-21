@@ -1,7 +1,7 @@
 import { GmailMessage } from '@/types';
 import { motion } from 'framer-motion';
 import { Mail } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { safeFormatDistanceToNow } from '@/lib/formatDate';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
@@ -66,7 +66,7 @@ export function GmailCard({ message }: GmailCardProps) {
       </p>
 
       <p className="text-xs text-muted-foreground">
-        {formatDistanceToNow(new Date(message.date), { addSuffix: true })}
+        {safeFormatDistanceToNow(message.date, { addSuffix: true })}
       </p>
     </motion.div>
   );

@@ -9,12 +9,19 @@ import { ApiResponse } from '../../utils/ApiResponse.ts';
 // TASKS
 // ════════════════════════════════════════════════════════
 
+const VALID_TASK_SOURCES = ['github', 'gmail', 'notion'];
+
 export const createTask = async (req: Request, res: Response): Promise<void> => {
-    const { taskDescription, due, status, notes, duration, startTime } = req.body;
+    const { taskDescription, due, status, notes, duration, startTime, source, externalId, link } = req.body;
     const { channel } = req.params;
 
     if (!taskDescription) {
         res.status(400).json(new ApiError(400, 'taskDescription is required'));
+        return;
+    }
+
+    if (source !== undefined && !VALID_TASK_SOURCES.includes(source)) {
+        res.status(400).json(new ApiError(400, 'source must be one of github, gmail, or notion'));
         return;
     }
 
@@ -26,6 +33,9 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
         notes,
         duration,
         startTime,
+        source,
+        externalId,
+        link,
         userId: req.userId,
         channel: channel || 'work',
     });
@@ -63,11 +73,16 @@ export const getTaskById = async (req: Request, res: Response): Promise<void> =>
 
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
     const { taskId } = req.params;
-    const { status, taskDescription, notes, due, channel, duration, startTime } = req.body;
+    const { status, taskDescription, notes, due, channel, duration, startTime, source, externalId, link } = req.body;
+
+    if (source !== undefined && !VALID_TASK_SOURCES.includes(source)) {
+        res.status(400).json(new ApiError(400, 'source must be one of github, gmail, or notion'));
+        return;
+    }
 
     const task = await Task.findOneAndUpdate(
         { _id: taskId, userId: req.userId },
-        { status, taskDescription, notes, due, channel, duration, startTime },
+        { status, taskDescription, notes, due, channel, duration, startTime, source, externalId, link },
         { new: true, runValidators: true }
     );
 

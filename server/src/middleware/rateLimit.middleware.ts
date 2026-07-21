@@ -4,13 +4,11 @@ import { Redis } from 'ioredis';
 import type { Request, Response } from 'express';
 import { PLAN_LIMITS } from '../config/planLimits.ts';
 import { env } from '../config/env.ts';
+import { getRedisOptions } from '../config/redis.ts';
 
-// Shared Redis client for rate limiting store
-const redisClient = new Redis({
-    host: env.REDIS_HOST,
-    port: env.REDIS_PORT,
-    maxRetriesPerRequest: null,
-});
+// Shared Redis client. Exported so other modules (for example the integration items cache)
+// reuse this one connection instead of opening a second one to the same server.
+export const redisClient = new Redis(getRedisOptions());
 
 redisClient.on('connect', () => console.log('✅ Rate limiter Redis connected'));
 redisClient.on('error', (err) => console.error('❌ Rate limiter Redis error:', err));
@@ -80,5 +78,35 @@ export const authLimiter = rateLimit({
             statusCode: 429,
             message: 'Too many attempts — please wait a minute and try again.',
         });
+    },
+});
+
+/**
+ * oauthCallbackLimiter: applied to the OAuth provider callback route only.
+ *
+ * That route is registered ahead of authMiddleware (the provider redirect cannot carry a
+ * bearer token) and so also sits ahead of apiLimiter, leaving it as the one public,
+ * unauthenticated endpoint with no rate limit at all: each request costs an AES decrypt, a
+ * JSON parse, and for a plausible looking state an outbound fetch to the provider token
+ * endpoint.
+ *
+ * Key: IP address, same reasoning as authLimiter, identity is not known yet.
+ * Limit: 30 requests per minute.
+ * The handler redirects rather than returning JSON: this endpoint is only ever reached by a
+ * full page browser redirect from the provider, not a fetch call, so the user needs to land
+ * somewhere sensible rather than see raw JSON.
+ */
+export const oauthCallbackLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 30,
+    keyGenerator: (req: Request) => req.ip ?? 'anonymous',
+    store: new RedisStore({
+        sendCommand: (...args: string[]) => redisClient.call(...args as [string, ...string[]]) as any,
+        prefix: 'rl:oauth:',
+    }),
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    handler: (_req: Request, res: Response) => {
+        res.redirect(`${env.FRONTEND_URL}/dashboard?integration_error=rate_limited`);
     },
 });

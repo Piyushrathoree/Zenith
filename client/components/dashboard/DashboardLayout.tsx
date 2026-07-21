@@ -21,8 +21,73 @@ import {
   DragOverlay,
   pointerWithin,
 } from "@dnd-kit/core";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Task } from "@/types";
+
+/** Friendly copy for the `integration_error=<code>` codes the OAuth callback can redirect with. */
+const INTEGRATION_ERROR_MESSAGES: Record<string, string> = {
+  invalid_provider: "That integration is not supported, please try connecting again from the sidebar.",
+  invalid_state: "Your connection request expired before it finished, please try connecting again.",
+  token_exchange_failed: "We could not finish connecting with the provider, please try again in a moment.",
+  server_error: "Something went wrong on our end while connecting, please try again shortly.",
+};
+const DEFAULT_INTEGRATION_ERROR_MESSAGE =
+  "Something went wrong while connecting that integration, please try again.";
+
+const INTEGRATION_PROVIDER_LABELS: Record<string, string> = {
+  github: "GitHub",
+  gmail: "Gmail",
+  notion: "Notion",
+};
+
+/**
+ * Reads the `integration_success` / `integration_error` query params the
+ * server's OAuth callback redirects the browser back with, surfaces a toast,
+ * then strips them from the URL with `router.replace` (never `push`, or the
+ * back button would get stuck cycling through the params).
+ *
+ * Pulled out into its own component, wrapped in <Suspense>, because
+ * useSearchParams opts a statically rendered page into client side rendering
+ * up to the nearest Suspense boundary. DashboardLayout itself is already
+ * rendered under a "use client" boundary (app/dashboard/page.tsx), so this
+ * is just about satisfying that requirement without making the rest of the
+ * dashboard wait on a Suspense fallback.
+ */
+function IntegrationOAuthReturnHandler() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { loadIntegrations } = useApp();
+  const hasHandled = useRef(false);
+
+  useEffect(() => {
+    const success = searchParams.get("integration_success");
+    const errorCode = searchParams.get("integration_error");
+
+    if (!success && !errorCode) return;
+    if (hasHandled.current) return;
+    hasHandled.current = true;
+
+    if (success) {
+      const label = INTEGRATION_PROVIDER_LABELS[success] || success;
+      toast.success(`${label} connected successfully.`);
+      void loadIntegrations();
+    } else if (errorCode) {
+      toast.error(INTEGRATION_ERROR_MESSAGES[errorCode] || DEFAULT_INTEGRATION_ERROR_MESSAGE);
+    }
+
+    // Strip only the two params this handler consumed, preserving anything
+    // else that was on the URL, rather than discarding the whole query string.
+    const remainingParams = new URLSearchParams(searchParams.toString());
+    remainingParams.delete("integration_success");
+    remainingParams.delete("integration_error");
+    const query = remainingParams.toString();
+    router.replace(query ? `/dashboard?${query}` : "/dashboard");
+  }, [searchParams, router, loadIntegrations]);
+
+  return null;
+}
 
 export function DashboardLayout() {
   const {
@@ -33,11 +98,23 @@ export function DashboardLayout() {
     showWeeklyRituals,
     setShowWeeklyRituals,
     weeklyRitualType,
+    loadIntegrations,
   } = useApp();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeDragType, setActiveDragType] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [activeDragData, setActiveDragData] = useState<any>(null);
+  const hasLoadedIntegrations = useRef(false);
+
+  // Load connected integrations + their items once on mount, alongside the
+  // planner data load that RequireAuth.tsx already triggers. Guarded with a
+  // ref (not just the empty dependency array) so React 18 strict mode's
+  // dev-only double invoke of effects cannot fire this twice.
+  useEffect(() => {
+    if (hasLoadedIntegrations.current) return;
+    hasLoadedIntegrations.current = true;
+    void loadIntegrations();
+  }, [loadIntegrations]);
 
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 5 },
@@ -90,6 +167,12 @@ export function DashboardLayout() {
           completed: false,
           source: "github",
           sourceData: issue,
+          // Prefer the server's real externalId; issue.id is only a display
+          // id / React key and may be a synthesised fallback (see
+          // integrationsMapping.ts), so it is used only when externalId is
+          // absent.
+          externalId: issue.externalId || String(issue.id),
+          link: issue.url,
         });
       }
 
@@ -103,6 +186,8 @@ export function DashboardLayout() {
           date: overData.column.id,
           completed: false,
           source: "github",
+          externalId: pr.externalId || String(pr.id),
+          link: pr.url,
         });
       }
 
@@ -116,6 +201,11 @@ export function DashboardLayout() {
           date: overData.column.id,
           completed: false,
           source: "gmail",
+          externalId: message.externalId || message.id,
+          // Prefer the server's direct link when present, and only fall
+          // back to rebuilding one from the thread id, which opens the
+          // original thread in Gmail's web interface, when it is absent.
+          link: message.link || `https://mail.google.com/mail/u/0/#all/${message.threadId}`,
         });
       }
 
@@ -129,6 +219,8 @@ export function DashboardLayout() {
           date: overData.column.id,
           completed: false,
           source: "notion",
+          externalId: page.externalId || page.id,
+          link: page.url,
         });
       }
     },
@@ -136,7 +228,14 @@ export function DashboardLayout() {
   );
 
   if (focusMode) {
-    return <FocusMode />;
+    return (
+      <>
+        <Suspense fallback={null}>
+          <IntegrationOAuthReturnHandler />
+        </Suspense>
+        <FocusMode />
+      </>
+    );
   }
 
   return (
@@ -146,6 +245,9 @@ export function DashboardLayout() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      <Suspense fallback={null}>
+        <IntegrationOAuthReturnHandler />
+      </Suspense>
       <div className="flex h-screen bg-background overflow-hidden font-alan">
         <LeftSidebar />
 

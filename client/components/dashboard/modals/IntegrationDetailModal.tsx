@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Github, Mail, FileText, ExternalLink, Clock } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { format, formatDistanceToNow } from "date-fns";
+import { safeFormat, safeFormatDistanceToNow } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
 
 export function IntegrationDetailModal() {
@@ -91,8 +91,8 @@ export function IntegrationDetailModal() {
                         {selectedIntegrationDetail.data.author}
                       </span>{" "}
                       opened{" "}
-                      {formatDistanceToNow(
-                        new Date(selectedIntegrationDetail.data.createdAt),
+                      {safeFormatDistanceToNow(
+                        selectedIntegrationDetail.data.createdAt,
                         { addSuffix: true }
                       )}
                     </span>
@@ -222,8 +222,8 @@ export function IntegrationDetailModal() {
                         {selectedIntegrationDetail.data.author}
                       </span>{" "}
                       opened{" "}
-                      {formatDistanceToNow(
-                        new Date(selectedIntegrationDetail.data.createdAt),
+                      {safeFormatDistanceToNow(
+                        selectedIntegrationDetail.data.createdAt,
                         { addSuffix: true }
                       )}
                     </span>
@@ -309,8 +309,8 @@ export function IntegrationDetailModal() {
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
-                        {format(
-                          new Date(selectedIntegrationDetail.data.date),
+                        {safeFormat(
+                          selectedIntegrationDetail.data.date,
                           "MMM d, yyyy h:mm a"
                         )}
                       </span>
@@ -376,8 +376,8 @@ export function IntegrationDetailModal() {
                       <span className="flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" />
                         Edited{" "}
-                        {formatDistanceToNow(
-                          new Date(selectedIntegrationDetail.data.lastEdited),
+                        {safeFormatDistanceToNow(
+                          selectedIntegrationDetail.data.lastEdited,
                           { addSuffix: true }
                         )}
                       </span>

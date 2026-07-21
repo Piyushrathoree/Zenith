@@ -1,17 +1,17 @@
-import { Schema, model } from 'mongoose';
+import { Document, Schema, model } from 'mongoose';
 
 // ─── Integration ──────────────────────────────────────────────────────────────
 // Stores OAuth tokens for third-party integrations.
 // Tokens are encrypted at rest using AES-256 (see src/utils/crypto.ts).
 // Each user can have one integration per provider.
 
-type Provider = 'github' | 'gmail' | 'notion';
+export type Provider = 'github' | 'gmail' | 'notion';
 
-interface IIntegration {
+export interface IIntegration extends Document {
     userId: string;
     provider: Provider;
     accessToken: string;    // AES-256 encrypted
-    refreshToken: string;   // AES-256 encrypted
+    refreshToken: string;   // AES-256 encrypted, empty for providers that never issue one
     profile: {
         username: string;
         avatar: string;
@@ -21,13 +21,16 @@ interface IIntegration {
 }
 
 const integrationSchema = new Schema<IIntegration>({
+    // req.userId is already a string on the auth middleware, so this stays a
+    // String rather than an ObjectId to match how the rest of this module reads it.
     userId: { type: String, required: true },
     provider: { type: String, enum: ['github', 'gmail', 'notion'], required: true },
     accessToken: { type: String, required: true },
-    refreshToken: { type: String, required: true },
+    // GitHub and Notion never return a refresh token, so this cannot be required.
+    refreshToken: { type: String, required: false, default: '' },
     profile: {
-        username: { type: String, required: true },
-        avatar: { type: String, required: true },
+        username: { type: String, required: true, default: '' },
+        avatar: { type: String, required: true, default: '' },
     },
     expiresAt: { type: Date },
     status: {

@@ -1,0 +1,48 @@
+# Local development infrastructure for Zenith.
+#
+# This file brings up MongoDB and Redis only, the two external dependencies
+# the server needs (see server/src/config/env.ts and server/.env.example:
+# MONGO_URI, REDIS_HOST/REDIS_PORT). The app itself is NOT containerised
+# here: run the server and client directly with `bun run dev`, as documented
+# in docs/TESTING.md. No `version:` key on purpose, it is obsolete in
+# current Compose and only produces a warning.
+#
+#   docker compose up -d       start Mongo and Redis in the background
+#   docker compose ps          check health status
+#   docker compose down        stop and remove containers, volumes persist
+#   docker compose down -v     stop and wipe volumes for a clean database
+
+services:
+    mongo:
+        image: mongo:8
+        container_name: zenith-mongo
+        restart: unless-stopped
+        ports:
+            - "27017:27017"
+        volumes:
+            - mongo_data:/data/db
+        healthcheck:
+            test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 10s
+
+    redis:
+        image: redis:8-alpine
+        container_name: zenith-redis
+        restart: unless-stopped
+        ports:
+            - "6379:6379"
+        volumes:
+            - redis_data:/data
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 5s
+
+volumes:
+    mongo_data:
+    redis_data:

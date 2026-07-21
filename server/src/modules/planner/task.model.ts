@@ -14,6 +14,10 @@ export interface ITask extends Document {
     notes?: string;
     duration?: string;   // planned duration, e.g. "1:00" — kept as a string to match the client
     startTime?: string;  // optional "HH:mm" time of day the task is scheduled to start
+    // Provenance: records where a task originated when it was created from an integration.
+    source?: 'github' | 'gmail' | 'notion';
+    externalId?: string;
+    link?: string;
 }
 
 const taskSchema = new Schema<ITask>({
@@ -30,6 +34,10 @@ const taskSchema = new Schema<ITask>({
     notes: { type: String },
     duration: { type: String },
     startTime: { type: String },
+    // Provenance: records where a task originated when it was created from an integration.
+    source: { type: String, enum: ['github', 'gmail', 'notion'] },
+    externalId: { type: String },
+    link: { type: String },
 });
 
 export const Task = model<ITask>('Task', taskSchema);

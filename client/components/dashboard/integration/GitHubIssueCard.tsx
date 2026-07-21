@@ -1,7 +1,7 @@
 import { GitHubIssue } from "@/types";
 import { motion } from "framer-motion";
 import { Calendar, Github } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/formatDate";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -85,7 +85,7 @@ export function GitHubIssueCard({ issue }: GitHubIssueCardProps) {
 
       <p className="text-xs text-muted-foreground mb-3">
         #{issue.number} ·{" "}
-        {formatDistanceToNow(new Date(issue.createdAt), { addSuffix: true })} ·{" "}
+        {safeFormatDistanceToNow(issue.createdAt, { addSuffix: true })} ·{" "}
         {issue.author}
       </p>
 

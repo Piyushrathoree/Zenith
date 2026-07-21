@@ -49,10 +49,15 @@
  *    back to the same sensible defaults as before (1:00 for board tasks,
  *    0:30 for daily-planner tasks) so existing rows still render sanely.
  *    `time` maps directly to `startTime` and stays undefined if the server
- *    has none. `source` / `sourceData` (the github/gmail/notion origin
- *    recorded when a card is dragged onto the board) are still client-memory
- *    only and are dropped on refresh - this is fine for now since the
- *    integration panels stay mock-backed.
+ *    has none. `source`, `externalId` and `link` (the github/gmail/notion
+ *    origin recorded when a card is dragged onto the board) now persist too,
+ *    since the server Task model carries those same three fields - they are
+ *    sent on create and update and read back on hydration, so a task keeps
+ *    its integration provenance across a reload. `sourceData` (the full
+ *    provider payload the card was built from) remains client-memory only
+ *    and is dropped on refresh, because the server stores just the
+ *    provenance pointer (`source`/`externalId`/`link`), not a full copy of
+ *    the provider payload.
  *
  * 6. Channel is now editable after creation
  *    PUT /planner/tasks/:taskId now also accepts `channel`, so a tag change
@@ -114,6 +119,9 @@ export function mapToClientTask(serverTask: ServerTask): Task {
     date: toDateString(serverTask.due || serverTask.start),
     completed: statusToCompleted(serverTask.status),
     notes: serverTask.notes,
+    source: serverTask.source,
+    externalId: serverTask.externalId,
+    link: serverTask.link,
   };
 }
 
@@ -144,6 +152,9 @@ export function mapToCreateServerTaskPayload(task: Omit<Task, "id">): {
       notes: task.notes,
       duration: task.duration,
       startTime: task.time,
+      source: task.source,
+      externalId: task.externalId,
+      link: task.link,
     },
   };
 }
@@ -162,15 +173,18 @@ export function mapToUpdateServerTaskPayload(updates: Partial<Task>): UpdateTask
   if (updates.tag !== undefined) payload.channel = updates.tag;
   if (updates.duration !== undefined) payload.duration = updates.duration;
   if (updates.time !== undefined) payload.startTime = updates.time;
+  if (updates.source !== undefined) payload.source = updates.source;
+  if (updates.externalId !== undefined) payload.externalId = updates.externalId;
+  if (updates.link !== undefined) payload.link = updates.link;
 
   return payload;
 }
 
 /**
  * Merges a server task update response back into a locally held client Task.
- * Server-authoritative fields (title/notes/date/completed/tag/duration/time)
- * are taken from the response; `source` / `sourceData` are kept from the
- * local copy since the server never tracks them (decision #5 above).
+ * Server-authoritative fields (title/notes/date/completed/tag/duration/time/
+ * source/externalId/link) are taken from the response; `sourceData` is kept
+ * from the local copy since the server never tracks it (decision #5 above).
  */
 export function mergeServerTaskUpdate(local: Task, serverTask: ServerTask): Task {
   const mapped = mapToClientTask(serverTask);
@@ -183,6 +197,9 @@ export function mergeServerTaskUpdate(local: Task, serverTask: ServerTask): Task
     tag: mapped.tag,
     duration: mapped.duration,
     time: mapped.time,
+    source: mapped.source,
+    externalId: mapped.externalId,
+    link: mapped.link,
   };
 }
 

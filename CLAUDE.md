@@ -56,11 +56,25 @@ Done (type-checks/lints clean, but NOT yet run against a live Mongo/Redis stack)
 - Backend planner gaps closed: `PUT /planner/tasks/:taskId` now accepts `channel`/`duration`/`startTime`; new `GET /planner/tasks/id/:taskId`, `PUT`/`DELETE /planner/channels/:channelId`; task model has `duration`/`startTime`.
 - Frontend: `/settings` and `/profile` pages, nav buttons wired (bell popover, calendar popover, Home, Invite dialog); client now persists tag/duration/time round-trip and Notes edits; weekly rituals lifted into the store (session-only, needs a backend model for durable persistence).
 - Docs for the user: `docs/INTEGRATIONS_QUICKSTART.md` (build-from) + `docs/INTEGRATIONS_GUIDE.md` (deep) for integrations; `docs/BILLING_STRIPE.md` + `docs/BILLING_DODO.md` (simple) for billing.
+- **Integrations built end to end** (was the user's domain, handed to Claude). Backend: adapter layer
+  (`modules/integration/adapters/` = `types.ts` with `UniversalTask`/`IntegrationAuthError`/`toIsoDate`,
+  one adapter per provider, `registry.ts`), `token.service.ts` (Gmail refresh with a 60s skew, revoke on
+  a dead token), and endpoints `GET /providers`, `GET /`, `GET /auth/:provider/url`, `GET /items`,
+  `DELETE /:provider`, with a per-user Redis items cache (90s TTL, generation-counter invalidation, fails
+  open). Frontend: `lib/api/integrations.ts` + `integrationsMapping.ts` (widens `UniversalTask` back into
+  the four rich card view types so no card component changed), an integrations slice in `useStore.ts`, and
+  a full panel state machine (loading / not entitled / not connected / needs reconnect / fetch error /
+  empty / items). Task provenance (`source`, `externalId`, `link`) now persists to Mongo on drag-to-board.
+  Three bugs fixed that blocked the flow entirely: the OAuth callback sat behind `authMiddleware` so
+  provider redirects always 401'd; a browser navigation cannot carry a bearer token, hence the
+  `/auth/:provider/url` two-step; and the `google` vs `gmail` provider enum mismatch.
+  Hardened after review: OAuth `state` is now bound to its provider and single-use via a Redis nonce
+  (fails closed), and the callback has its own IP rate limiter.
 
 ## Known gaps / not yet built
 
 - **End to end unverified**: all the above passes typecheck/lint but has NOT been run against a live backend. First real-run pass is pending.
-- **Integrations are connect-only** (USER is building this): OAuth tokens stored but never used to fetch data; no list/disconnect/items endpoints yet; Notion is a stub. Provider enum bug (`google` vs `gmail`) is documented in the guide for the user to fix.
+- **Integrations are built but unrun**: full stack is in place (see the progress log), type-checks and lints clean, but has never been exercised against live GitHub/Google/Notion OAuth apps. Needs real credentials in `.env` plus a Pro or trial user to test.
 - **No billing** (intentionally not implemented): plan/trial + gates are built, but nothing moves a user free → pro. A Stripe attempt was built then fully reverted per the user's choice. See `docs/BILLING_STRIPE.md` or `docs/BILLING_DODO.md` to add it.
 - **Weekly rituals** persist only in-session; durable storage needs a new backend "rituals" model.
 - **"Today" calendar** in the kanban header can't jump the board to a date yet (needs a store helper + `data-date` on columns).

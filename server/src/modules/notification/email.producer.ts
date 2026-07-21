@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { env } from '../../config/env.ts';
+import { getRedisOptions } from '../../config/redis.ts';
 import type { EmailJobData } from './mail.ts';
 
 /**
@@ -17,10 +17,7 @@ import type { EmailJobData } from './mail.ts';
  *   await EmailQueue.add('send-forgot-password-email', { email, resetLink });
  */
 export const EmailQueue = new Queue<EmailJobData>('email-queue', {
-    connection: {
-        host: env.REDIS_HOST,
-        port: env.REDIS_PORT,
-    },
+    connection: getRedisOptions(),
     defaultJobOptions: {
         attempts: 3,                // retry up to 3 times on failure
         backoff: { type: 'exponential', delay: 2000 },

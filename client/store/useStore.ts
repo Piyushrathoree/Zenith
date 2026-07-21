@@ -2,7 +2,6 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { Task, Column, DailyTask, IntegrationType, GitHubIssue, GitHubPR, GmailMessage, NotionPage } from '@/types';
-import { mockGitHubIssues, mockGitHubPRs, mockGmailMessages, mockNotionPages } from '@/lib/mockData';
 import { addDays, format, startOfDay } from 'date-fns';
 import { FilterTag, FilterStatus } from '@/components/dashboard/kanban/FilterDropdown';
 import { ApiRequestError } from '@/lib/api/client';
@@ -26,6 +25,18 @@ import {
     mapToUpdateServerTaskPayload,
     mergeServerTaskUpdate,
 } from '@/lib/api/plannerMapping';
+import {
+    ConnectedIntegration,
+    IntegrationFetchError,
+    IntegrationProvider,
+    ProviderInfo,
+    disconnectIntegration as disconnectIntegrationRequest,
+    getIntegrationItems,
+    listConnectedIntegrations,
+    listProviders,
+    startProviderConnect,
+} from '@/lib/api/integrations';
+import { mapIntegrationItems } from '@/lib/api/integrationsMapping';
 
 export type ViewMode = 'board' | 'calendar';
 
@@ -96,6 +107,13 @@ interface AppState {
     githubPRs: GitHubPR[];
     gmailMessages: GmailMessage[];
     notionPages: NotionPage[];
+    connectedIntegrations: ConnectedIntegration[];
+    availableProviders: ProviderInfo[];
+    integrationErrors: IntegrationFetchError[];
+    isIntegrationsLoading: boolean;
+    integrationsLoaded: boolean;
+    integrationsError: string | null;
+    isIntegrationsRefreshing: boolean;
     integrationTab: 'issues' | 'prs';
     viewMode: ViewMode;
     filterTags: FilterTag[];
@@ -125,6 +143,12 @@ interface AppState {
     openIntegrationDetail: (detail: IntegrationDetailType) => void;
     /** Fetches tasks + channels + today's daily plan from the backend and hydrates the store. */
     loadInitialData: () => Promise<void>;
+    /** Fetches providers + connected integrations + items from the backend and hydrates the store. */
+    loadIntegrations: () => Promise<void>;
+    /** Re-fetches items only, bypassing the server cache, for the panel's refresh button. */
+    refreshIntegrationItems: () => Promise<void>;
+    connectIntegration: (provider: IntegrationProvider) => Promise<void>;
+    disconnectIntegration: (provider: IntegrationProvider) => Promise<void>;
     addTask: (task: Omit<Task, 'id'>) => Promise<void>;
     updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
     deleteTask: (id: string) => Promise<void>;
@@ -178,11 +202,20 @@ export const useStore = create<AppState>((set, get) => ({
     weeklyRitualType: 'planning',
     focusMode: false,
     focusTask: null,
-    // Integration data stays mock backed - integrations are out of scope here.
-    githubIssues: mockGitHubIssues,
-    githubPRs: mockGitHubPRs,
-    gmailMessages: mockGmailMessages,
-    notionPages: mockNotionPages,
+    // Integration data starts empty and is populated by loadIntegrations()
+    // once the user is authenticated, the same way the planner slice above
+    // is populated by loadInitialData() - see components/auth/RequireAuth.tsx.
+    githubIssues: [],
+    githubPRs: [],
+    gmailMessages: [],
+    notionPages: [],
+    connectedIntegrations: [],
+    availableProviders: [],
+    integrationErrors: [],
+    isIntegrationsLoading: false,
+    integrationsLoaded: false,
+    integrationsError: null,
+    isIntegrationsRefreshing: false,
     integrationTab: 'issues',
     viewMode: 'board',
     filterTags: ['all'],
@@ -283,6 +316,145 @@ export const useStore = create<AppState>((set, get) => ({
         }
     },
 
+    loadIntegrations: async () => {
+        if (get().isIntegrationsLoading) return;
+        set({ isIntegrationsLoading: true, integrationsError: null });
+
+        // Promise.allSettled rather than Promise.all: a free plan user gets a
+        // 403 back from all three of these endpoints, since the server gates
+        // integrations behind Pro (see featureGate.middleware.ts). With
+        // Promise.all only the first rejection is observed and the other two
+        // become unhandled promise rejections logged to the console on every
+        // free plan dashboard load, even though the outcome (an empty,
+        // gated panel) is the same either way. Settling all three lets us
+        // tell that normal gated case apart from a genuine failure, and lets
+        // a partial success (e.g. providers and items load but the connected
+        // list request drops) still render instead of being thrown away.
+        const [providersResult, connectedResult, itemsResult] = await Promise.allSettled([
+            listProviders(),
+            listConnectedIntegrations(),
+            getIntegrationItems(),
+        ]);
+        const results = [providersResult, connectedResult, itemsResult];
+
+        const isForbidden = (result: PromiseSettledResult<unknown>) =>
+            result.status === 'rejected' &&
+            result.reason instanceof ApiRequestError &&
+            result.reason.statusCode === 403;
+
+        if (results.every(isForbidden)) {
+            // Normal gated free plan state - renders as an empty integrations
+            // panel with no toast, mirrors the 404 handling for a missing
+            // daily plan in loadInitialData above.
+            set({
+                availableProviders: [],
+                connectedIntegrations: [],
+                integrationErrors: [],
+                githubIssues: [],
+                githubPRs: [],
+                gmailMessages: [],
+                notionPages: [],
+                isIntegrationsLoading: false,
+                integrationsLoaded: true,
+                integrationsError: null,
+            });
+            return;
+        }
+
+        const genuineFailure = results.find(
+            (result): result is PromiseRejectedResult => result.status === 'rejected' && !isForbidden(result)
+        );
+
+        if (genuineFailure) {
+            const message = getErrorMessage(genuineFailure.reason, 'Could not load your integrations');
+            set({ isIntegrationsLoading: false, integrationsLoaded: true, integrationsError: message });
+            toast.error(`${message}. Showing an empty integrations panel until the connection is restored.`);
+            return;
+        }
+
+        // Everything that did not succeed here is a gated 403, never a
+        // genuine error - use whatever came back and treat the rest as
+        // empty rather than discarding a partial result.
+        const mapped = itemsResult.status === 'fulfilled'
+            ? mapIntegrationItems(itemsResult.value.items)
+            : { githubIssues: [], githubPRs: [], gmailMessages: [], notionPages: [] };
+
+        set({
+            availableProviders: providersResult.status === 'fulfilled' ? providersResult.value : [],
+            connectedIntegrations: connectedResult.status === 'fulfilled' ? connectedResult.value : [],
+            integrationErrors: itemsResult.status === 'fulfilled' ? itemsResult.value.errors : [],
+            githubIssues: mapped.githubIssues,
+            githubPRs: mapped.githubPRs,
+            gmailMessages: mapped.gmailMessages,
+            notionPages: mapped.notionPages,
+            isIntegrationsLoading: false,
+            integrationsLoaded: true,
+            integrationsError: null,
+        });
+    },
+
+    refreshIntegrationItems: async () => {
+        set({ isIntegrationsRefreshing: true });
+
+        try {
+            const itemsResponse = await getIntegrationItems(true);
+            const mapped = mapIntegrationItems(itemsResponse.items);
+            set({
+                githubIssues: mapped.githubIssues,
+                githubPRs: mapped.githubPRs,
+                gmailMessages: mapped.gmailMessages,
+                notionPages: mapped.notionPages,
+                integrationErrors: itemsResponse.errors,
+            });
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not refresh your integrations'));
+        } finally {
+            set({ isIntegrationsRefreshing: false });
+        }
+    },
+
+    connectIntegration: async (provider) => {
+        // startProviderConnect() navigates the browser away to the provider's
+        // consent screen on success, so there is nothing to set in state here.
+        // If the request itself fails, that navigation never happens, so the
+        // user needs a toast or they would otherwise see nothing at all.
+        try {
+            await startProviderConnect(provider);
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not start the connection'));
+        }
+    },
+
+    disconnectIntegration: async (provider) => {
+        const previousConnectedIntegrations = get().connectedIntegrations;
+        const previousGithubIssues = get().githubIssues;
+        const previousGithubPRs = get().githubPRs;
+        const previousGmailMessages = get().gmailMessages;
+        const previousNotionPages = get().notionPages;
+
+        set((state) => ({
+            connectedIntegrations: state.connectedIntegrations.filter((c) => c.provider !== provider),
+            githubIssues: provider === 'github' ? [] : state.githubIssues,
+            githubPRs: provider === 'github' ? [] : state.githubPRs,
+            gmailMessages: provider === 'gmail' ? [] : state.gmailMessages,
+            notionPages: provider === 'notion' ? [] : state.notionPages,
+        }));
+
+        try {
+            await disconnectIntegrationRequest(provider);
+            toast.success(`Disconnected ${provider}`);
+        } catch (error) {
+            set({
+                connectedIntegrations: previousConnectedIntegrations,
+                githubIssues: previousGithubIssues,
+                githubPRs: previousGithubPRs,
+                gmailMessages: previousGmailMessages,
+                notionPages: previousNotionPages,
+            });
+            toast.error(getErrorMessage(error, 'Could not disconnect the integration'));
+        }
+    },
+
     addTask: async (task) => {
         const tempId = `temp-${Date.now()}`;
         const optimisticTask: Task = { ...task, id: tempId };
@@ -293,6 +465,13 @@ export const useStore = create<AppState>((set, get) => ({
         // duration/time (see CreateTaskModal.tsx) persists across reload
         // instead of resetting to a hardcoded default - see plannerMapping.ts.
         const { channel, payload } = mapToCreateServerTaskPayload(task);
+        // Carry provenance through to the server so a task dragged in from
+        // the integration panel keeps its origin after a reload instead of
+        // looking like it was typed from scratch - purely additive, a task
+        // with none of these fields sends exactly the payload it always did.
+        if (task.source) payload.source = task.source;
+        if (task.externalId) payload.externalId = task.externalId;
+        if (task.link) payload.link = task.link;
         try {
             const created = await createTask(channel, payload);
             const mapped = mapToClientTask(created);

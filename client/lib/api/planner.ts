@@ -34,6 +34,8 @@ import { apiClient } from "./client";
 
 export type ServerTaskStatus = "todo" | "not_started" | "in_progress" | "done";
 
+export type ServerTaskSource = "github" | "gmail" | "notion";
+
 export interface ServerTask {
   _id: string;
   taskDescription: string;
@@ -45,6 +47,9 @@ export interface ServerTask {
   notes?: string;
   duration?: string;
   startTime?: string;
+  source?: ServerTaskSource;
+  externalId?: string;
+  link?: string;
 }
 
 export interface CreateTaskPayload {
@@ -54,6 +59,9 @@ export interface CreateTaskPayload {
   notes?: string;
   duration?: string;
   startTime?: string;
+  source?: ServerTaskSource;
+  externalId?: string;
+  link?: string;
 }
 
 export interface UpdateTaskPayload {
@@ -64,6 +72,9 @@ export interface UpdateTaskPayload {
   channel?: string;
   duration?: string;
   startTime?: string;
+  source?: ServerTaskSource;
+  externalId?: string;
+  link?: string;
 }
 
 export interface ServerChannel {

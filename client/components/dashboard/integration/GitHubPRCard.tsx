@@ -1,7 +1,7 @@
 import { GitHubPR } from '@/types';
 import { motion } from 'framer-motion';
 import { GitPullRequest } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { safeFormatDistanceToNow } from '@/lib/formatDate';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
@@ -60,7 +60,7 @@ export function GitHubPRCard({ pr }: GitHubPRCardProps) {
       </h4>
       
       <p className="text-xs text-muted-foreground">
-        #{pr.number} · {formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })} · {pr.author}
+        #{pr.number} · {safeFormatDistanceToNow(pr.createdAt, { addSuffix: true })} · {pr.author}
       </p>
     </motion.div>
   );

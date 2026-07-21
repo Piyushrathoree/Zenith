@@ -24,6 +24,11 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+# .env itself must be ignored: server/.env holds the JWT signing secret, the AES
+# ENCRYPTION_KEY that protects every stored OAuth token, and the provider client secrets.
+.env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
