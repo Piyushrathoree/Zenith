@@ -74,6 +74,18 @@ export function resetPassword(payload: ResetPasswordPayload): Promise<null> {
 }
 
 /**
+ * Ends the server side session and clears its cookie.
+ *
+ * Sent with `auth: false` on purpose: the whole point of calling this is to
+ * recover from a state where the JWT is already gone but the session cookie
+ * (sent by client.ts via `credentials: "include"`) is still alive. The backend
+ * route is unauthenticated for the same reason.
+ */
+export function logout(): Promise<null> {
+  return apiClient.post<null>("/auth/logout", undefined, { auth: false });
+}
+
+/**
  * Fetches the full user record for the id embedded in the current JWT.
  * Requires a valid Bearer token (attached automatically by apiClient).
  */

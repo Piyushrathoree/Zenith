@@ -10,10 +10,21 @@ import {
   TrendingUp,
   Copy,
   Mail,
+  LogOut,
+  Settings,
+  User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useApp } from "@/context/AppContext";
+import { useAuthStore } from "@/store/useAuthStore";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { WeeklyRitualsPanel } from "./panels/WeeklyRitualsPanel";
@@ -48,6 +59,14 @@ export function LeftSidebar() {
     focusMode,
   } = useApp();
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const logout = useAuthStore((state) => state.logout);
+  const userEmail = useAuthStore((state) => state.user?.email);
+
+  const handleLogout = async () => {
+    await logout();
+    toast.success("Signed out");
+    router.replace("/login");
+  };
 
   const handleCopyInvite = async () => {
     try {
@@ -116,13 +135,46 @@ export function LeftSidebar() {
       <aside className="w-sidebar h-screen flex flex-col bg-card border-r border-border overflow-hidden">
         {/* User Profile */}
         <div className="p-4 border-b border-border">
-          <button className="flex items-center gap-3 w-full hover:bg-muted rounded-lg p-2 transition-colors">
-            <ZenithLogo variant="mark" className="h-10 w-10" />
-            <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-foreground">Zenith</p>
-            </div>
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-3 w-full hover:bg-muted rounded-lg p-2 transition-colors">
+                <ZenithLogo variant="mark" className="h-10 w-10" />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-medium text-foreground">Zenith</p>
+                  {userEmail && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {userEmail}
+                    </p>
+                  )}
+                </div>
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem
+                className="gap-2"
+                onClick={() => router.push("/profile")}
+              >
+                <User className="w-4 h-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2"
+                onClick={() => router.push("/settings")}
+              >
+                <Settings className="w-4 h-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 text-destructive focus:text-destructive"
+                onClick={handleLogout}
+              >
+                <LogOut className="w-4 h-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Navigation */}

@@ -34,7 +34,10 @@ router.delete('/delete/:userId', authMiddleware, deleteUser);
 router.get('/me/:userId', authMiddleware, getUserById);
 router.get('/user', authMiddleware, getUserByEmail); // restricted to the caller's own email, see controller
 router.post('/change-password', authMiddleware, validate(ChangePasswordSchema), changePassword);
-router.post('/logout', authMiddleware, logout);
+// Intentionally unauthenticated: it only ever clears the caller's own session
+// cookie, and requiring a valid JWT meant a user who had lost their token could
+// never drop a still-live session cookie.
+router.post('/logout', logout);
 
 // ─── OAuth: Google ────────────────────────────────────────────────────────────
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

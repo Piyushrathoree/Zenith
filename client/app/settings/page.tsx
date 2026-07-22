@@ -195,8 +195,8 @@ function AccountCard() {
   const logout = useAuthStore((state) => state.logout);
   const email = useAuthStore((state) => state.user?.email);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
   };
 

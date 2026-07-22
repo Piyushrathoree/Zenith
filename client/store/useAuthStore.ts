@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   login as loginRequest,
   register as registerRequest,
+  logout as logoutRequest,
   getCurrentUser,
   decodeUserIdFromToken,
   type AuthUser,
@@ -18,7 +19,7 @@ interface AuthState {
 
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loadFromStorage: () => void;
   /** Used by the OAuth callback page, which already has a token in hand. */
   hydrateFromToken: (token: string) => Promise<void>;
@@ -68,7 +69,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  logout: () => {
+  logout: async () => {
+    // Best effort: the local state must be cleared even if the network call
+    // fails, otherwise a user who is offline or hitting a dead backend can
+    // never sign out. The server call is what drops the express-session
+    // cookie, which clearToken() alone cannot touch.
+    try {
+      await logoutRequest();
+    } catch {
+      // Swallowed on purpose, see above.
+    }
     clearToken();
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },

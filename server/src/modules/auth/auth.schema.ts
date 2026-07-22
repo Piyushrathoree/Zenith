@@ -23,7 +23,8 @@ export const RegisterUserSchema = z.object({
 
 export const LoginUserSchema = z.object({
     email: emailSchema,
-    password: passwordSchema,
+    // Login only checks that a password was provided — complexity rules apply at register/reset.
+    password: z.string().min(1, 'Password is required'),
 });
 
 export const UpdateUserSchema = z.object({

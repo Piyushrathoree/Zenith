@@ -26,6 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { ClearSessionButton } from "@/components/auth/ClearSessionButton";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ApiRequestError } from "@/lib/api/client";
 
@@ -137,6 +138,7 @@ export default function LoginPage() {
           Sign up
         </Link>
       </CardFooter>
+      <ClearSessionButton />
     </Card>
   );
 }

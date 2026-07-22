@@ -12,21 +12,10 @@ import { resolveAccessToken, markIntegrationRevoked } from './token.service.ts';
 import { IntegrationAuthError } from './adapters/types.ts';
 import type { IntegrationProvider, IntegrationProfile, UniversalTask } from './adapters/types.ts';
 
-// ─── Redis cache for GET /items ─────────────────────────────────────────────────
-// Reuses the shared ioredis client exported by middleware/rateLimit.middleware.ts rather than
-// opening a second connection to the same server. Every call below fails open: if Redis is
-// unavailable we fall through to a live fetch, so an outage costs speed and never correctness.
 const cacheRedis = redisClient;
 
 const ITEMS_CACHE_TTL_SECONDS = 90;
 
-// The cache key is namespaced by a per-user generation number, not just the userId, to close a
-// resurrection race: disconnectProvider deletes the integration and wants the cache to reflect
-// that immediately, but a GET /items that started earlier can still be mid flight and write its
-// stale (pre disconnect) payload back after that. Bumping the generation on every disconnect
-// means such a stale write lands on the OLD generation's key, which nothing ever reads again and
-// which simply expires with the rest of that entry's TTL, instead of overwriting the current,
-// correct cache entry.
 function itemsCacheGenerationKey(userId: string): string {
     return `integrations:items:gen:${userId}`;
 }
@@ -45,14 +34,6 @@ interface ItemsPayload {
     errors: ItemFetchError[];
 }
 
-// Every Redis call below is wrapped in try/catch so a Redis outage degrades speed (falls
-// through to a live fetch) and never correctness. Never let a cache failure surface as a
-// request failure.
-
-// Fails open to generation 0 if Redis cannot be reached. That is safe: readItemsCache and
-// writeItemsCache below make their own Redis calls against that same generation number and, if
-// Redis is genuinely down, those calls fail open too (cache miss / no-op), so the request just
-// falls through to a live fetch exactly as it would without a generation number at all.
 async function currentCacheGeneration(userId: string): Promise<number> {
     try {
         const raw = await cacheRedis.get(itemsCacheGenerationKey(userId));

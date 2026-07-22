@@ -96,7 +96,10 @@ async function request<T>(
   const body = isJson ? ((await res.json().catch(() => null)) as ApiEnvelope<T> | null) : null;
 
   if (!res.ok) {
-    const message = body?.message || res.statusText || "Request failed";
+    const message =
+      (typeof body?.message === "string" && body.message.trim()) ||
+      res.statusText ||
+      "Request failed";
     const errors = body?.errors ?? [];
     throw new ApiRequestError(message, body?.statusCode ?? res.status, errors);
   }
