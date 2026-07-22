@@ -43,7 +43,6 @@ dist/
 
 
 # services (microservices code)
-services/
+
 
 MONOLITH_BUILD_GUIDE.md
-docs
