@@ -173,8 +173,8 @@ function FocusTimerCard() {
 
   const progressByDuration: Record<FocusDuration, number> = {
     15: 0.28,
-    25: 0.62,
-    45: 0.44,
+    25: 0.44,
+    45: 0.62,
   };
 
   const focusTask = focusTasks[taskIndex];
