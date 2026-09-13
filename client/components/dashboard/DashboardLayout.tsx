@@ -92,7 +92,6 @@ function IntegrationOAuthReturnHandler() {
 export function DashboardLayout() {
   const {
     activeIntegration,
-    focusMode,
     moveTask,
     addTask,
     showWeeklyRituals,
@@ -227,17 +226,6 @@ export function DashboardLayout() {
     [moveTask, addTask]
   );
 
-  if (focusMode) {
-    return (
-      <>
-        <Suspense fallback={null}>
-          <IntegrationOAuthReturnHandler />
-        </Suspense>
-        <FocusMode />
-      </>
-    );
-  }
-
   return (
     <DndContext
       sensors={sensors}
@@ -269,6 +257,7 @@ export function DashboardLayout() {
           onClose={() => setShowWeeklyRituals(false)}
           type={weeklyRitualType || "planning"}
         />
+        <FocusMode />
       </div>
 
       {/* Drag Overlay for integration cards */}
@@ -279,26 +268,26 @@ export function DashboardLayout() {
         }}
       >
         {activeDragType === "task" && activeTask && (
-          <div className="task-card task-card-dragging w-72">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  {activeTask.time && (
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {activeTask.time}
-                    </span>
-                  )}
-                  <span className="text-xs px-2 py-0.5 bg-muted rounded text-muted-foreground">
-                    {activeTask.duration}
+          <div className="task-card task-card-dragging h-32 w-[304px]">
+            <div className="flex h-full flex-col justify-between">
+              <div className="flex items-center justify-between">
+                {activeTask.time ? (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {activeTask.time}
                   </span>
-                </div>
-                <h4 className="text-sm font-medium text-foreground mb-1.5">
-                  {activeTask.title}
-                </h4>
-                <span className="text-xs font-medium tag-work">
-                  #{activeTask.tag}
+                ) : (
+                  <span />
+                )}
+                <span className="text-xs px-2 py-0.5 bg-muted rounded text-muted-foreground">
+                  {activeTask.duration}
                 </span>
               </div>
+              <h4 className="text-base font-medium text-foreground line-clamp-2 leading-snug">
+                {activeTask.title}
+              </h4>
+              <span className="text-xs font-medium tag-work">
+                #{activeTask.tag}
+              </span>
             </div>
           </div>
         )}

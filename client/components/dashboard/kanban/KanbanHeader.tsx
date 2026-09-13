@@ -63,7 +63,7 @@ export function KanbanHeader() {
         <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
           <PopoverTrigger asChild>
             <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted rounded-lg transition-colors">
-              <Calendar className="w-4 h-4 text-accent" />
+              <Calendar className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm font-medium">Today</span>
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             </button>
@@ -139,7 +139,7 @@ export function KanbanHeader() {
           <PopoverTrigger asChild>
             <button className="p-2 hover:bg-muted rounded-lg transition-colors relative">
               <Bell className="w-5 h-5 text-muted-foreground" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-brand" />
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72">
@@ -157,8 +157,8 @@ export function KanbanHeader() {
           onClick={() => router.push("/profile")}
           className="p-2 hover:bg-muted rounded-lg transition-colors"
         >
-          <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
-            <User className="w-4 h-4 text-accent" />
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+            <User className="w-4 h-4 text-muted-foreground" />
           </div>
         </button>
       </div>

@@ -100,7 +100,7 @@ function ResetPasswordForm() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={submitting}>
+              <Button type="submit" variant="brand" className="w-full" disabled={submitting}>
                 {submitting ? "Resetting..." : "Reset password"}
               </Button>
             </form>

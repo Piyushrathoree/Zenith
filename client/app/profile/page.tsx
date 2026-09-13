@@ -6,21 +6,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { ArrowLeft, Mail } from "lucide-react";
 
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -33,18 +24,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { apiClient, ApiRequestError } from "@/lib/api/client";
 import type { AuthUser } from "@/lib/api/auth";
+import { GoogleMark } from "@/components/brand/GoogleMark";
+import { GitHubMark } from "@/components/brand/GitHubMark";
+import { cn } from "@/lib/utils";
 
-// The AuthUser type (client/lib/api/auth.ts) does not declare googleId /
-// githubId since auth.ts is owned by another workstream. The backend user
-// record does carry them (see server/src/modules/auth/auth.model.ts), so we
-// widen the type locally, purely for display, instead of editing auth.ts.
 type ProfileUser = AuthUser & {
   googleId?: string;
   githubId?: string;
 };
 
-// Mirrors server/src/modules/auth/auth.schema.ts UpdateUserSchema (name only,
-// this page does not offer avatar/password editing).
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(20, "Name is too long"),
 });
@@ -76,10 +64,6 @@ function ProfileContent() {
     setSubmitting(true);
     try {
       await apiClient.put(`/auth/update/${user._id}`, { name: values.name });
-      // useAuthStore does not expose a direct setter for `user` (that file is
-      // owned by another workstream), so we refresh from storage - the PUT
-      // already persisted the change server side, so this simply re-fetches
-      // the now-updated record via the existing token.
       loadFromStorage();
       toast.success("Profile updated");
     } catch (error) {
@@ -93,101 +77,111 @@ function ProfileContent() {
 
   if (!user) {
     return (
-      <Card>
-        <CardContent className="p-6 text-sm text-muted-foreground">
-          Loading profile...
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl border-2 border-foreground/15 bg-card p-6 text-sm text-muted-foreground shadow-soft">
+        Loading profile…
+      </div>
     );
   }
 
-  const isTrialActive = Boolean(user.trialEndsAt && new Date(user.trialEndsAt).getTime() > Date.now());
+  const isTrialActive = Boolean(
+    user.trialEndsAt && new Date(user.trialEndsAt).getTime() > Date.now()
+  );
   const planLabel = user.plan === "pro" ? "Pro" : "Free";
-  const providers = [
-    user.googleId ? "Google" : null,
-    user.githubId ? "GitHub" : null,
-  ].filter(Boolean) as string[];
+  const connected = [
+    user.googleId ? { name: "Google", icon: GoogleMark } : null,
+    user.githubId ? { name: "GitHub", icon: GitHubMark } : null,
+  ].filter(Boolean) as { name: string; icon: typeof GoogleMark }[];
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-4">
-          <Avatar className="h-16 w-16">
+    <div className="space-y-4">
+      <section className="rounded-2xl border-2 border-foreground/15 bg-card p-6 shadow-soft">
+        <div className="flex items-center gap-4">
+          <Avatar className="h-16 w-16 border border-foreground/10">
             <AvatarImage src={user.avatarUrl} alt={user.name} />
-            <AvatarFallback className="text-lg">{initials(user.name)}</AvatarFallback>
+            <AvatarFallback className="bg-brand-soft text-lg font-medium text-brand">
+              {initials(user.name)}
+            </AvatarFallback>
           </Avatar>
-          <div>
-            <CardTitle>{user.name}</CardTitle>
-            <CardDescription>{user.email}</CardDescription>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-medium text-foreground">{user.name}</h2>
+            <p className="truncate text-sm text-muted-foreground">{user.email}</p>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={planLabel === "Pro" ? "default" : "secondary"}>{planLabel} plan</Badge>
-            {isTrialActive && user.trialEndsAt ? (
-              <Badge variant="outline">
-                Trial active until {new Date(user.trialEndsAt).toLocaleDateString()}
-              </Badge>
-            ) : null}
-            {user.isVerified ? (
-              <Badge variant="outline">Email verified</Badge>
-            ) : (
-              <Badge variant="outline">Email not verified</Badge>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand">
+            {planLabel} plan
+          </span>
+          {isTrialActive && user.trialEndsAt ? (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+              Trial until {new Date(user.trialEndsAt).toLocaleDateString()}
+            </span>
+          ) : null}
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-1 text-xs",
+              user.isVerified
+                ? "bg-health-soft text-tag-health"
+                : "bg-muted text-muted-foreground"
             )}
+          >
+            {user.isVerified ? "Email verified" : "Email not verified"}
+          </span>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border-2 border-foreground/15 bg-card p-6 shadow-soft">
+        <p className="text-sm font-medium text-foreground">Display name</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          This is how you show up across Zenith. Email stays locked to this account.
+        </p>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormLabel className="sr-only">Display name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Your name" autoComplete="name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" variant="brand" disabled={submitting}>
+              {submitting ? "Saving…" : "Save"}
+            </Button>
+          </form>
+        </Form>
+      </section>
+
+      <section className="rounded-2xl border-2 border-foreground/15 bg-card p-6 shadow-soft">
+        <p className="text-sm font-medium text-foreground">How you sign in</p>
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center gap-3 rounded-xl border border-foreground/10 bg-muted/30 px-3 py-2.5">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-foreground">Email and password</span>
           </div>
-
-          <Separator />
-
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">Connected accounts</p>
-            {providers.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {providers.map((provider) => (
-                  <Badge key={provider} variant="secondary">
-                    {provider}
-                  </Badge>
-                ))}
+          {connected.length > 0 ? (
+            connected.map((account) => (
+              <div
+                key={account.name}
+                className="flex items-center gap-3 rounded-xl border border-foreground/10 bg-muted/30 px-3 py-2.5"
+              >
+                <account.icon />
+                <span className="text-sm text-foreground">{account.name}</span>
+                <span className="ml-auto text-xs text-muted-foreground">Connected</span>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No third-party accounts connected. You are signed in with email and password.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Edit profile</CardTitle>
-          <CardDescription>Update the name shown across Zenith.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Display name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ada Lovelace" autoComplete="name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving..." : "Save changes"}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-        <CardFooter className="text-sm text-muted-foreground">
-          Email cannot be changed from this page.
-        </CardFooter>
-      </Card>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No Google or GitHub account is linked yet.
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -196,13 +190,16 @@ export default function ProfilePage() {
   return (
     <>
       <RequireAuth>
-        <div className="min-h-screen bg-background px-4 py-10">
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
-              <Link href="/dashboard" className="text-sm text-muted-foreground hover:underline">
-                Back to dashboard
-              </Link>
+        <div className="min-h-screen bg-background px-4 py-10 font-alan">
+          <div className="mx-auto w-full max-w-lg">
+            <div className="mb-6 flex items-center justify-between">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/dashboard">
+                  <ArrowLeft className="h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+              <p className="text-sm font-medium text-foreground">Profile</p>
             </div>
             <ProfileContent />
           </div>

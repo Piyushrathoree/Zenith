@@ -1,9 +1,10 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, ListChecks, TrendingUp, Target, Clock, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from "motion/react";
+import { X, Calendar, ListChecks, TrendingUp, Target, Sparkles } from "lucide-react";
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { format, startOfWeek, endOfWeek, addDays } from 'date-fns';
-import { useStore } from '@/store/useStore';
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { useStore } from "@/store/useStore";
+import { Button } from "@/components/ui/button";
 
 interface WeeklyRitualsPanelProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
   const goals = useStore((state) => state.weeklyGoals);
   const priorities = useStore((state) => state.weeklyPriorities);
   const addWeeklyGoal = useStore((state) => state.addWeeklyGoal);
+  const removeWeeklyGoal = useStore((state) => state.removeWeeklyGoal);
   const updateWeeklyGoalProgress = useStore((state) => state.updateWeeklyGoalProgress);
   const addWeeklyPriority = useStore((state) => state.addWeeklyPriority);
   const removeWeeklyPriority = useStore((state) => state.removeWeeklyPriority);
@@ -61,7 +63,7 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
             onClick={onClose}
           />
           <motion.div
@@ -69,34 +71,35 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[600px] md:max-h-[80vh] bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col"
+            className="fixed inset-4 z-50 flex max-h-[80vh] flex-col overflow-hidden rounded-2xl border-2 border-foreground/15 bg-card shadow-soft md:inset-auto md:left-1/2 md:top-1/2 md:h-auto md:w-[560px] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
+            <div className="flex items-center justify-between px-5 pt-5">
               <div className="flex items-center gap-3">
-                {type === 'planning' ? (
-                  <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
-                    <Target className="w-5 h-5 text-accent" />
+                {type === "planning" ? (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft">
+                    <Target className="h-5 w-5 text-brand" />
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-lg bg-tag-health/20 flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-tag-health" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-health-soft">
+                    <TrendingUp className="h-5 w-5 text-tag-health" />
                   </div>
                 )}
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {type === 'planning' ? 'Weekly Planning' : 'Weekly Review'}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
+                  <p className="text-sm font-medium text-foreground">
+                    {type === "planning" ? "Weekly planning" : "Weekly review"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d, yyyy")}
                   </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close"
               >
-                <X className="w-5 h-5 text-muted-foreground" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -114,8 +117,8 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
                       key={idx}
                       className={cn(
                         "text-center p-2 rounded-lg",
-                        format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-                          ? "bg-accent text-accent-foreground"
+                        format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+                          ? "bg-brand-soft text-brand"
                           : "bg-muted/50"
                       )}
                     >
@@ -133,33 +136,48 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
                   Weekly Goals
                 </h3>
                 <div className="space-y-3">
+                  {goals.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No goals this week yet. Add one below.
+                    </p>
+                  )}
                   {goals.map((goal) => (
-                    <div key={goal.id} className="bg-muted/30 rounded-lg p-3">
+                    <div key={goal.id} className="group rounded-lg border border-foreground/10 bg-muted/30 p-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm text-foreground">{goal.title}</span>
                         <div className="flex items-center gap-2">
                           <button
+                            type="button"
                             onClick={() => updateGoalProgress(goal.id, -1)}
-                            className="w-6 h-6 rounded bg-muted hover:bg-muted/80 flex items-center justify-center text-sm"
+                            className="flex h-6 w-6 items-center justify-center rounded bg-muted text-sm hover:bg-muted/80"
                           >
                             -
                           </button>
-                          <span className="text-sm font-medium text-accent min-w-[40px] text-center">
+                          <span className="min-w-[40px] text-center text-sm font-medium text-brand">
                             {goal.progress}/{goal.target}
                           </span>
                           <button
+                            type="button"
                             onClick={() => updateGoalProgress(goal.id, 1)}
-                            className="w-6 h-6 rounded bg-accent hover:bg-accent/90 text-accent-foreground flex items-center justify-center text-sm"
+                            className="flex h-6 w-6 items-center justify-center rounded bg-brand text-sm text-brand-foreground hover:bg-brand/90"
                           >
                             +
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => removeWeeklyGoal(goal.id)}
+                            className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/20 hover:text-destructive group-hover:opacity-100"
+                            aria-label="Remove goal"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${(goal.progress / goal.target) * 100}%` }}
-                          className="h-full bg-accent rounded-full"
+                          className="h-full rounded-full bg-brand"
                         />
                       </div>
                     </div>
@@ -170,15 +188,12 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
                       value={newGoal}
                       onChange={(e) => setNewGoal(e.target.value)}
                       placeholder="Add a new goal..."
-                      className="flex-1 px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddGoal()}
+                      className="flex-1 rounded-lg border border-foreground/10 bg-muted/40 px-3 py-2 text-sm outline-none focus:border-brand/40"
+                      onKeyDown={(e) => e.key === "Enter" && handleAddGoal()}
                     />
-                    <button
-                      onClick={handleAddGoal}
-                      className="px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
-                    >
+                    <Button type="button" variant="brand" size="sm" onClick={handleAddGoal}>
                       Add
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -190,6 +205,11 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
                   Top Priorities
                 </h3>
                 <div className="space-y-2">
+                  {priorities.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No priorities this week yet. Add one below.
+                    </p>
+                  )}
                   {priorities.map((priority, idx) => (
                     <motion.div
                       key={idx}
@@ -198,7 +218,7 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
                       transition={{ delay: idx * 0.1 }}
                       className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg group"
                     >
-                      <span className="w-6 h-6 rounded-full bg-accent/20 text-accent text-sm font-medium flex items-center justify-center">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-soft text-sm font-medium text-brand">
                         {idx + 1}
                       </span>
                       <span className="text-sm text-foreground flex-1">{priority}</span>
@@ -216,52 +236,22 @@ export function WeeklyRitualsPanel({ isOpen, onClose, type }: WeeklyRitualsPanel
                       value={newPriority}
                       onChange={(e) => setNewPriority(e.target.value)}
                       placeholder="Add a priority..."
-                      className="flex-1 px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddPriority()}
+                      className="flex-1 rounded-lg border border-foreground/10 bg-muted/40 px-3 py-2 text-sm outline-none focus:border-brand/40"
+                      onKeyDown={(e) => e.key === "Enter" && handleAddPriority()}
                     />
-                    <button
-                      onClick={handleAddPriority}
-                      className="px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
-                    >
+                    <Button type="button" variant="brand" size="sm" onClick={handleAddPriority}>
                       Add
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
-
-              {/* Time Allocation (for planning) */}
-              {type === 'planning' && (
-                <div>
-                  <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    Time Allocation
-                  </h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="text-center p-3 bg-tag-work/10 rounded-lg border border-tag-work/20">
-                      <p className="text-2xl font-bold text-tag-work">24h</p>
-                      <p className="text-xs text-muted-foreground">Work</p>
-                    </div>
-                    <div className="text-center p-3 bg-tag-personal/10 rounded-lg border border-tag-personal/20">
-                      <p className="text-2xl font-bold text-tag-personal">12h</p>
-                      <p className="text-xs text-muted-foreground">Personal</p>
-                    </div>
-                    <div className="text-center p-3 bg-tag-health/10 rounded-lg border border-tag-health/20">
-                      <p className="text-2xl font-bold text-tag-health">6h</p>
-                      <p className="text-xs text-muted-foreground">Health</p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-border bg-muted/30">
-              <button
-                onClick={onClose}
-                className="w-full py-2.5 bg-accent text-accent-foreground rounded-lg font-medium hover:bg-accent/90 transition-colors"
-              >
-                {type === 'planning' ? 'Start Planning' : 'Complete Review'}
-              </button>
+            <div className="border-t border-foreground/10 p-4">
+              <Button type="button" variant="brand" className="w-full" onClick={onClose}>
+                {type === "planning" ? "Start planning" : "Complete review"}
+              </Button>
             </div>
           </motion.div>
         </>

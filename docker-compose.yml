@@ -1,16 +1,18 @@
-# Local development infrastructure for Zenith.
+ # Full local stack: MongoDB, Redis, API, Next.js UI.
 #
-# This file brings up MongoDB and Redis only, the two external dependencies
-# the server needs (see server/src/config/env.ts and server/.env.example:
-# MONGO_URI, REDIS_HOST/REDIS_PORT). The app itself is NOT containerised
-# here: run the server and client directly with `bun run dev`, as documented
-# in docs/TESTING.md. No `version:` key on purpose, it is obsolete in
-# current Compose and only produces a warning.
+# Prerequisite: copy server/.env.example → server/.env and fill required secrets.
+# Compose overrides MONGO_URI / REDIS_URL so the API talks to the sibling containers
+# even if .env still says localhost (that only works when Bun runs on the host).
 #
-#   docker compose up -d       start Mongo and Redis in the background
-#   docker compose ps          check health status
-#   docker compose down        stop and remove containers, volumes persist
-#   docker compose down -v     stop and wipe volumes for a clean database
+#   docker compose up --build    start everything (logs in the foreground)
+#   docker compose up --build -d background
+#   docker compose ps            check health
+#   docker compose down          stop containers; volumes persist
+#   docker compose down -v       stop and wipe Mongo/Redis data
+#   docker compose up mongo redis   infra only (then bun run dev as before)
+#   CLIENT_PORT=3001 docker compose up --build
+#       if host :3000 is already taken (Compose interpolates this into the UI
+#       publish port and FRONTEND_URL so CORS / OAuth redirects stay in sync)
 
 services:
     mongo:
@@ -42,6 +44,64 @@ services:
             timeout: 5s
             retries: 10
             start_period: 5s
+
+    server:
+        build:
+            context: ./server
+        container_name: zenith-server
+        restart: unless-stopped
+        ports:
+            - "8000:8000"
+        env_file:
+            - ./server/.env
+        environment:
+            PORT: "8000"
+            MONGO_URI: mongodb://mongo:27017/zenith
+            REDIS_URL: redis://redis:6379
+            FRONTEND_URL: http://localhost:${CLIENT_PORT:-3000}
+            API_BASE_URL: http://localhost:8000
+        depends_on:
+            mongo:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "bun",
+                    "-e",
+                    "fetch('http://127.0.0.1:8000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+
+    client:
+        build:
+            context: ./client
+        container_name: zenith-client
+        restart: unless-stopped
+        ports:
+            - "${CLIENT_PORT:-3000}:3000"
+        environment:
+            NEXT_PUBLIC_API_URL: http://localhost:8000
+        depends_on:
+            server:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "bun",
+                    "-e",
+                    "fetch('http://127.0.0.1:3000').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))",
+                ]
+            interval: 10s
+            timeout: 10s
+            retries: 18
+            start_period: 40s
 
 volumes:
     mongo_data:

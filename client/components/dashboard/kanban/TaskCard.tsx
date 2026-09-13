@@ -62,29 +62,30 @@ export function TaskCard({ task }: TaskCardProps) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -2 }}
       className={cn(
-        "task-card group",
+        "task-card group h-32 w-full",
         isDragging && "task-card-dragging z-50",
         task.completed && "opacity-60"
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex h-full items-start gap-3">
         <button
           onClick={handleToggleComplete}
           className="mt-0.5 flex-shrink-0"
         >
           {task.completed ? (
-            <CheckCircle2 className="w-5 h-5 text-accent" />
+            <CheckCircle2 className="w-5 h-5 text-brand" />
           ) : (
-            <Circle className="w-5 h-5 text-muted-foreground/50 hover:text-accent transition-colors" />
+            <Circle className="w-5 h-5 text-muted-foreground/50 hover:text-foreground transition-colors" />
           )}
         </button>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            {task.time && (
+        <div className="flex min-w-0 flex-1 flex-col justify-between h-full">
+          <div className="flex items-center justify-between">
+            {task.time ? (
               <span className="text-xs font-medium text-muted-foreground">{task.time}</span>
+            ) : (
+              <span />
             )}
             <span className="text-xs px-2 py-0.5 bg-muted rounded text-muted-foreground">
               {task.duration}
@@ -92,7 +93,7 @@ export function TaskCard({ task }: TaskCardProps) {
           </div>
 
           <h4 className={cn(
-            "text-sm font-medium text-foreground mb-1.5",
+            "text-base font-medium text-foreground line-clamp-2 leading-snug",
             task.completed && "line-through"
           )}>
             {task.title}

@@ -1,8 +1,9 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { X, Plus, CheckCircle2, Circle, Clock, Hash } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export function TodayPanel() {
   const {
@@ -30,124 +31,136 @@ export function TodayPanel() {
     setShowAddForm(false);
   };
 
-  if (!showTodayPanel) return null;
+  const close = () => {
+    setShowAddForm(false);
+    setNewTaskTitle("");
+    setShowTodayPanel(false);
+  };
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
-        onClick={() => setShowTodayPanel(false)}
-      >
+      {showTodayPanel && (
         <motion.div
-          initial={{ opacity: 0, x: -100 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -100 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className="absolute left-sidebar top-0 bottom-0 w-96 bg-card border-r border-border shadow-2xl overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+          onClick={close}
         >
-          {/* Header */}
-          <div className="sticky top-0 flex items-center justify-between px-4 py-4 bg-card border-b border-border">
-            <h2 className="text-lg font-semibold">Today&apos;s Plan</h2>
-            <button
-              onClick={() => setShowTodayPanel(false)}
-              className="p-1.5 hover:bg-muted rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="p-4 space-y-4">
-            {/* Tasks List */}
-            {dailyTasks.map((task, index) => (
-              <motion.div
-                key={task.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg"
+          <motion.div
+            initial={{ opacity: 0, x: -24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute bottom-0 left-sidebar top-0 flex w-96 flex-col overflow-hidden border-r-2 border-foreground/15 bg-card shadow-soft"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Today</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  What you meant to get done
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={close}
+                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close"
               >
-                <button onClick={() => toggleDailyTask(task.id)}>
-                  {task.completed ? (
-                    <CheckCircle2 className="w-5 h-5 text-accent" />
-                  ) : (
-                    <Circle className="w-5 h-5 text-muted-foreground hover:text-accent transition-colors" />
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-2 overflow-y-auto px-5 pb-5">
+              {dailyTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className={cn(
+                    "flex items-start gap-3 rounded-xl border border-foreground/10 px-3 py-2.5",
+                    task.completed ? "bg-brand-soft/40" : "bg-muted/30"
                   )}
-                </button>
-                <div className="flex-1">
-                  <p
-                    className={cn(
-                      "text-sm font-medium",
-                      task.completed && "line-through text-muted-foreground"
-                    )}
-                  >
-                    {task.title}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    {task.time && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {task.time}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <Hash className="w-3 h-3" />
-                      {task.tag}
-                    </span>
-                  </div>
-                </div>
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                  {task.duration}
-                </span>
-              </motion.div>
-            ))}
-
-            {/* Add Task Form */}
-            {showAddForm ? (
-              <form
-                onSubmit={handleAddTask}
-                className="p-3 bg-muted/50 rounded-lg"
-              >
-                <input
-                  type="text"
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="What do you want to accomplish today?"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  autoFocus
-                />
-                <div className="flex justify-end gap-2 mt-3">
+                >
                   <button
                     type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => toggleDailyTask(task.id)}
+                    className="mt-0.5"
                   >
-                    Cancel
+                    {task.completed ? (
+                      <CheckCircle2 className="h-5 w-5 text-brand" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                    )}
                   </button>
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 text-xs bg-accent text-accent-foreground rounded-md"
-                  >
-                    Add
-                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        task.completed && "text-muted-foreground line-through"
+                      )}
+                    >
+                      {task.title}
+                    </p>
+                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                      {task.time && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {task.time}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Hash className="h-3 w-3" />
+                        {task.tag}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {task.duration}
+                  </span>
                 </div>
-              </form>
-            ) : (
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="flex items-center gap-2 w-full p-3 border-2 border-dashed border-border rounded-lg text-sm text-muted-foreground hover:border-accent/30 hover:text-foreground transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add task
-              </button>
-            )}
-          </div>
+              ))}
+
+              {showAddForm ? (
+                <form
+                  onSubmit={handleAddTask}
+                  className="rounded-xl border border-foreground/10 bg-muted/30 p-3"
+                >
+                  <input
+                    type="text"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="What should get done today?"
+                    className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                    autoFocus
+                  />
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAddForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" variant="brand" size="sm">
+                      Add
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-foreground/15 py-3 text-sm text-muted-foreground hover:border-foreground/25 hover:text-foreground"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add task
+                </button>
+              )}
+            </div>
+          </motion.div>
         </motion.div>
-      </motion.div>
+      )}
     </AnimatePresence>
   );
 }

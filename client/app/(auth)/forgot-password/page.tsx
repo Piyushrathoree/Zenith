@@ -87,7 +87,7 @@ export default function ForgotPasswordPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={submitting}>
+              <Button type="submit" variant="brand" className="w-full" disabled={submitting}>
                 {submitting ? "Sending..." : "Send reset link"}
               </Button>
             </form>

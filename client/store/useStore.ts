@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { Task, Column, DailyTask, IntegrationType, GitHubIssue, GitHubPR, GmailMessage, NotionPage } from '@/types';
-import { addDays, format, startOfDay } from 'date-fns';
+import { addDays, format, startOfDay, startOfWeek } from 'date-fns';
 import { FilterTag, FilterStatus } from '@/components/dashboard/kanban/FilterDropdown';
 import { ApiRequestError } from '@/lib/api/client';
 import {
@@ -42,20 +42,60 @@ export type ViewMode = 'board' | 'calendar';
 
 /**
  * Weekly rituals (goals + top priorities) shown in WeeklyRitualsPanel.tsx.
- * There is no backend "rituals" model yet, so this is intentionally a
- * client-only slice of the store - it keeps the panel's state consistent
- * within a session and across remounts (it used to be a local useState in
- * the panel component, which reset every time the panel unmounted), but it
- * does not survive a full page reload or sync across devices. Durable
- * persistence needs a future backend model (e.g. a WeeklyRitual document
- * keyed by week + userId) plus matching planner-style service/mapping
- * functions; flagged here as a follow up, not implemented in this pass.
+ * There is no backend rituals model yet, so this slice is client-only and
+ * stored in localStorage for the current calendar week. When a new week
+ * starts the list is emptied so last week's goals do not carry over.
  */
 export interface WeeklyGoal {
     id: string;
     title: string;
     progress: number;
     target: number;
+}
+
+const WEEKLY_RITUALS_STORAGE_KEY = "zenith_weekly_rituals";
+
+function currentWeekKey(): string {
+    return format(startOfWeek(new Date()), "yyyy-MM-dd");
+}
+
+interface WeeklyRitualsSnapshot {
+    weekKey: string;
+    weeklyGoals: WeeklyGoal[];
+    weeklyPriorities: string[];
+}
+
+function emptyWeeklyRituals(): WeeklyRitualsSnapshot {
+    return {
+        weekKey: currentWeekKey(),
+        weeklyGoals: [],
+        weeklyPriorities: [],
+    };
+}
+
+function loadWeeklyRituals(): WeeklyRitualsSnapshot {
+    const fresh = emptyWeeklyRituals();
+    if (typeof window === "undefined") return fresh;
+    try {
+        const raw = window.localStorage.getItem(WEEKLY_RITUALS_STORAGE_KEY);
+        if (!raw) return fresh;
+        const parsed = JSON.parse(raw) as WeeklyRitualsSnapshot;
+        if (parsed.weekKey !== fresh.weekKey) return fresh;
+        return {
+            weekKey: parsed.weekKey,
+            weeklyGoals: Array.isArray(parsed.weeklyGoals) ? parsed.weeklyGoals : [],
+            weeklyPriorities: Array.isArray(parsed.weeklyPriorities)
+                ? parsed.weeklyPriorities
+                : [],
+        };
+    } catch {
+        return fresh;
+    }
+}
+
+function saveWeeklyRituals(snapshot: WeeklyRitualsSnapshot): void {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(WEEKLY_RITUALS_STORAGE_KEY, JSON.stringify(snapshot));
 }
 
 export type IntegrationDetailType =
@@ -102,7 +142,12 @@ interface AppState {
     showWeeklyRituals: boolean;
     weeklyRitualType: 'planning' | 'review';
     focusMode: boolean;
+    focusMinimized: boolean;
     focusTask: Task | null;
+    focusTitle: string;
+    focusTimeLeft: number;
+    focusRunning: boolean;
+    focusDurationMin: number;
     githubIssues: GitHubIssue[];
     githubPRs: GitHubPR[];
     gmailMessages: GmailMessage[];
@@ -120,7 +165,8 @@ interface AppState {
     filterStatus: FilterStatus;
     selectedIntegrationDetail: IntegrationDetailType;
     showIntegrationModal: boolean;
-    // Weekly rituals - client-only slice, see the WeeklyGoal comment above.
+    // Weekly rituals - client-only, keyed to the current calendar week.
+    weeklyWeekKey: string;
     weeklyGoals: WeeklyGoal[];
     weeklyPriorities: string[];
 
@@ -134,6 +180,13 @@ interface AppState {
     setShowWeeklyRituals: (show: boolean, type?: 'planning' | 'review') => void;
     setFocusMode: (focus: boolean) => void;
     setFocusTask: (task: Task | null) => void;
+    setFocusTitle: (title: string) => void;
+    setFocusDurationMin: (minutes: number) => void;
+    setFocusRunning: (running: boolean) => void;
+    tickFocus: () => void;
+    resetFocusTimer: () => void;
+    minimizeFocus: () => void;
+    exitFocus: () => void;
     setIntegrationTab: (tab: 'issues' | 'prs') => void;
     setViewMode: (mode: ViewMode) => void;
     setFilterTags: (tags: FilterTag[]) => void;
@@ -157,6 +210,7 @@ interface AppState {
     addDailyTask: (task: Omit<DailyTask, 'id'>) => Promise<void>;
     // Weekly rituals actions - client-only, see WeeklyGoal comment above.
     addWeeklyGoal: (title: string) => void;
+    removeWeeklyGoal: (id: string) => void;
     updateWeeklyGoalProgress: (id: string, increment: number) => void;
     addWeeklyPriority: (text: string) => void;
     removeWeeklyPriority: (index: number) => void;
@@ -201,7 +255,12 @@ export const useStore = create<AppState>((set, get) => ({
     showWeeklyRituals: false,
     weeklyRitualType: 'planning',
     focusMode: false,
+    focusMinimized: false,
     focusTask: null,
+    focusTitle: "",
+    focusTimeLeft: 25 * 60,
+    focusRunning: false,
+    focusDurationMin: 25,
     // Integration data starts empty and is populated by loadIntegrations()
     // once the user is authenticated, the same way the planner slice above
     // is populated by loadInitialData() - see components/auth/RequireAuth.tsx.
@@ -222,18 +281,7 @@ export const useStore = create<AppState>((set, get) => ({
     filterStatus: 'all',
     selectedIntegrationDetail: null,
     showIntegrationModal: false,
-    // Seeded with the same placeholder rituals the old local useState in
-    // WeeklyRitualsPanel.tsx used to have, just lifted up into the store.
-    weeklyGoals: [
-        { id: '1', title: 'Complete project milestones', progress: 3, target: 5 },
-        { id: '2', title: 'Exercise sessions', progress: 2, target: 4 },
-        { id: '3', title: 'Read for 30 minutes', progress: 5, target: 7 },
-    ],
-    weeklyPriorities: [
-        'Finish Q4 report',
-        'Team sync meeting',
-        'Review pull requests',
-    ],
+    ...loadWeeklyRituals(),
 
     setActiveIntegration: (integration) => set({ activeIntegration: integration }),
     setSelectedTask: (task) => set({ selectedTask: task }),
@@ -241,12 +289,60 @@ export const useStore = create<AppState>((set, get) => ({
     setShowCreateModal: (show) => set({ showCreateModal: show }),
     setShowTodayPanel: (show) => set({ showTodayPanel: show }),
     setShowDailyPlanner: (show) => set({ showDailyPlanner: show }),
-    setShowWeeklyRituals: (show, type) => set((state) => ({
-        showWeeklyRituals: show,
-        weeklyRitualType: type || state.weeklyRitualType
+    setShowWeeklyRituals: (show, type) => set((state) => {
+        const weekKey = currentWeekKey();
+        const weekChanged = state.weeklyWeekKey !== weekKey;
+        const next = {
+            showWeeklyRituals: show,
+            weeklyRitualType: type || state.weeklyRitualType,
+            ...(weekChanged
+                ? { weeklyWeekKey: weekKey, weeklyGoals: [], weeklyPriorities: [] }
+                : {}),
+        };
+        if (weekChanged) {
+            saveWeeklyRituals({
+                weekKey,
+                weeklyGoals: [],
+                weeklyPriorities: [],
+            });
+        }
+        return next;
+    }),
+    setFocusMode: (focus) => set((state) => ({
+        focusMode: focus,
+        focusMinimized: focus ? false : state.focusRunning,
     })),
-    setFocusMode: (focus) => set({ focusMode: focus }),
-    setFocusTask: (task) => set({ focusTask: task }),
+    setFocusTask: (task) => set({
+        focusTask: task,
+        focusTitle: task?.title ?? "",
+    }),
+    setFocusTitle: (title) => set({ focusTitle: title, focusTask: null }),
+    setFocusDurationMin: (minutes) => set((state) => ({
+        focusDurationMin: minutes,
+        focusTimeLeft: state.focusRunning ? state.focusTimeLeft : minutes * 60,
+        focusRunning: state.focusRunning ? state.focusRunning : false,
+    })),
+    setFocusRunning: (running) => set({ focusRunning: running }),
+    tickFocus: () => set((state) => {
+        if (!state.focusRunning) return state;
+        if (state.focusTimeLeft <= 1) {
+            return { focusTimeLeft: 0, focusRunning: false };
+        }
+        return { focusTimeLeft: state.focusTimeLeft - 1 };
+    }),
+    resetFocusTimer: () => set((state) => ({
+        focusTimeLeft: state.focusDurationMin * 60,
+        focusRunning: false,
+    })),
+    minimizeFocus: () => set({ focusMode: false, focusMinimized: true }),
+    exitFocus: () => set((state) => ({
+        focusMode: false,
+        focusMinimized: false,
+        focusRunning: false,
+        focusTimeLeft: state.focusDurationMin * 60,
+        focusTask: null,
+        focusTitle: "",
+    })),
     setIntegrationTab: (tab) => set({ integrationTab: tab }),
     setViewMode: (mode) => set({ viewMode: mode }),
     setFilterTags: (tags) => set({ filterTags: tags }),
@@ -593,28 +689,62 @@ export const useStore = create<AppState>((set, get) => ({
         }
     },
 
-    addWeeklyGoal: (title) => set((state) => ({
-        weeklyGoals: [
+    addWeeklyGoal: (title) => set((state) => {
+        const weeklyGoals = [
             ...state.weeklyGoals,
-            { id: `${Date.now()}`, title, progress: 0, target: 5 },
-        ],
-    })),
+            { id: `${Date.now()}`, title: title.trim(), progress: 0, target: 7 },
+        ];
+        saveWeeklyRituals({
+            weekKey: state.weeklyWeekKey,
+            weeklyGoals,
+            weeklyPriorities: state.weeklyPriorities,
+        });
+        return { weeklyGoals };
+    }),
 
-    updateWeeklyGoalProgress: (id, increment) => set((state) => ({
-        weeklyGoals: state.weeklyGoals.map((goal) =>
+    removeWeeklyGoal: (id) => set((state) => {
+        const weeklyGoals = state.weeklyGoals.filter((goal) => goal.id !== id);
+        saveWeeklyRituals({
+            weekKey: state.weeklyWeekKey,
+            weeklyGoals,
+            weeklyPriorities: state.weeklyPriorities,
+        });
+        return { weeklyGoals };
+    }),
+
+    updateWeeklyGoalProgress: (id, increment) => set((state) => {
+        const weeklyGoals = state.weeklyGoals.map((goal) =>
             goal.id === id
                 ? { ...goal, progress: Math.max(0, Math.min(goal.target, goal.progress + increment)) }
                 : goal
-        ),
-    })),
+        );
+        saveWeeklyRituals({
+            weekKey: state.weeklyWeekKey,
+            weeklyGoals,
+            weeklyPriorities: state.weeklyPriorities,
+        });
+        return { weeklyGoals };
+    }),
 
-    addWeeklyPriority: (text) => set((state) => ({
-        weeklyPriorities: [...state.weeklyPriorities, text],
-    })),
+    addWeeklyPriority: (text) => set((state) => {
+        const weeklyPriorities = [...state.weeklyPriorities, text.trim()];
+        saveWeeklyRituals({
+            weekKey: state.weeklyWeekKey,
+            weeklyGoals: state.weeklyGoals,
+            weeklyPriorities,
+        });
+        return { weeklyPriorities };
+    }),
 
-    removeWeeklyPriority: (index) => set((state) => ({
-        weeklyPriorities: state.weeklyPriorities.filter((_, i) => i !== index),
-    })),
+    removeWeeklyPriority: (index) => set((state) => {
+        const weeklyPriorities = state.weeklyPriorities.filter((_, i) => i !== index);
+        saveWeeklyRituals({
+            weekKey: state.weeklyWeekKey,
+            weeklyGoals: state.weeklyGoals,
+            weeklyPriorities,
+        });
+        return { weeklyPriorities };
+    }),
 
     getFilteredTasks: () => {
         const { tasks, filterTags, filterStatus } = get();

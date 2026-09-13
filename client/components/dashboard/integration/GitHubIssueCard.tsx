@@ -6,6 +6,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useApp } from "@/context/AppContext";
+import { integrationCardHover, integrationCardSpring } from "./integrationCardMotion";
 
 interface GitHubIssueCardProps {
   issue: GitHubIssue;
@@ -36,7 +37,6 @@ export function GitHubIssueCard({ issue }: GitHubIssueCardProps) {
   };
 
   const handleClick = () => {
-    // Only open modal if not dragging
     if (!isDragging) {
       openIntegrationDetail({ type: "github-issue", data: issue });
     }
@@ -49,53 +49,52 @@ export function GitHubIssueCard({ issue }: GitHubIssueCardProps) {
       {...listeners}
       {...attributes}
       onClick={handleClick}
-      whileHover={{ scale: 1.01 }}
-      className={cn(
-        "p-3 bg-card border border-border rounded-lg cursor-pointer transition-all",
-        "hover:border-accent/30 hover:shadow-md",
-        isDragging && "opacity-50 shadow-xl rotate-2 cursor-grabbing"
-      )}
+      whileHover={isDragging ? undefined : integrationCardHover}
+      transition={integrationCardSpring}
+      className={cn("integration-card", isDragging && "integration-card-dragging")}
     >
-      <div className="flex items-start gap-2 mb-2">
-        <Github className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-        <p className="text-xs text-muted-foreground truncate flex-1">
+      <div className="mb-2.5 flex items-start gap-2.5">
+        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-work-soft text-tag-work">
+          <Github className="h-3.5 w-3.5" />
+        </span>
+        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {issue.repository}
         </p>
         <span
           className={cn(
-            "px-2 py-0.5 text-xs rounded-full font-medium flex items-center gap-1",
+            "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
             issue.state === "open"
               ? "bg-status-open/15 text-status-open"
-              : "bg-status-closed/15 text-status-closed"
+              : "bg-status-closed/15 text-status-closed",
           )}
         >
           <span
             className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              issue.state === "open" ? "bg-status-open" : "bg-status-closed"
+              "h-1.5 w-1.5 rounded-full",
+              issue.state === "open" ? "bg-status-open" : "bg-status-closed",
             )}
           />
           {issue.state === "open" ? "Open" : "Closed"}
         </span>
       </div>
 
-      <h4 className="text-sm font-medium text-foreground mb-2 line-clamp-2">
+      <h4 className="mb-2 line-clamp-2 text-sm font-medium text-foreground">
         {issue.title}
       </h4>
 
-      <p className="text-xs text-muted-foreground mb-3">
+      <p className="mb-3 text-xs text-muted-foreground">
         #{issue.number} ·{" "}
         {safeFormatDistanceToNow(issue.createdAt, { addSuffix: true })} ·{" "}
         {issue.author}
       </p>
 
-      <div className="flex flex-wrap gap-1.5 mb-2">
+      <div className="mb-2.5 flex flex-wrap gap-1.5">
         {issue.labels.slice(0, 3).map((label) => (
           <span
             key={label.name}
             className={cn(
-              "px-2 py-0.5 text-xs rounded-full",
-              getLabelColor(label.color)
+              "rounded-full px-2 py-0.5 text-xs",
+              getLabelColor(label.color),
             )}
           >
             {label.name}
@@ -104,8 +103,8 @@ export function GitHubIssueCard({ issue }: GitHubIssueCardProps) {
       </div>
 
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Calendar className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Calendar className="h-3.5 w-3.5" />
           <span>Today</span>
         </div>
         {issue.assignees[0] && (
@@ -115,7 +114,7 @@ export function GitHubIssueCard({ issue }: GitHubIssueCardProps) {
             width={24}
             height={24}
             unoptimized
-            className="w-6 h-6 rounded-full ring-2 ring-card"
+            className="h-6 w-6 rounded-full ring-2 ring-card"
           />
         )}
       </div>

@@ -30,21 +30,18 @@ export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
   return (
     <div className="kanban-column">
       {/* Column Header */}
-      <div
-        className={cn(
-          "flex items-center justify-between px-3 py-4 border-b border-border mb-2",
-          today && "border-b-accent/50"
-        )}
-      >
+      <div className="flex items-center justify-between px-3 py-3 border-b border-border mb-2">
         <div>
-          <h3
-            className={cn(
-              "text-sm font-semibold",
-              today ? "text-accent" : "text-foreground"
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium text-foreground">
+              {today ? "Today" : format(column.date, "EEEE")}
+            </h3>
+            {today && (
+              <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand">
+                {format(column.date, "EEE")}
+              </span>
             )}
-          >
-            {format(column.date, "EEEE")}
-          </h3>
+          </div>
           <p className="text-xs text-muted-foreground">
             {format(column.date, "MMMM d")}
           </p>
@@ -52,6 +49,7 @@ export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
         <button
           onClick={() => setShowCreateModal(true)}
           className="p-1.5 hover:bg-muted rounded-lg transition-colors"
+          aria-label="Add task"
         >
           <Plus className="w-4 h-4 text-muted-foreground" />
         </button>
@@ -77,15 +75,14 @@ export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
         </SortableContext>
 
         {columnTasks.length === 0 && (
-          <div className="flex items-center justify-center h-32 border-2 border-dashed border-border rounded-lg bg-card/50 hover:bg-card transition-colors">
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add task</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center justify-center gap-2 w-full h-32 border-2 border-dashed border-border rounded-lg bg-card/50 hover:bg-card hover:text-foreground text-sm text-muted-foreground cursor-pointer transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add task</span>
+          </button>
         )}
       </div>
     </div>

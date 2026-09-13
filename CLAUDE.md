@@ -32,11 +32,12 @@ Monolith consolidating four former microservices into modules under `server/src/
 - react-query is mounted but unused; react-hook-form/zod/recharts installed but unused.
 - No auth UI, no API calls, no persistence — all state resets on reload.
 
-## Running locally (manual; no orchestration exists)
+## Running locally
 
-Requires MongoDB + Redis + a Gmail App Password + Google & GitHub OAuth apps standing by.
-1. `cd server && bun install && cp .env.example .env` (fill in all required vars) `&& bun run dev` (port 8000)
-2. `cd client && bun install && bun run dev` (port 3000)
+Requires Docker + a filled `server/.env` (Mongo/Redis via Compose; Gmail + Google/GitHub OAuth, or placeholders).
+1. `cp server/.env.example server/.env` (fill required vars)
+2. `docker compose up --build` — Mongo, Redis, API (`:8000`), Next.js (`:3000`)
+3. Host Bun still works: `docker compose up mongo redis -d` then `bun run dev` in `server/` and `client/`
 
 Required server env (validated at startup, crashes if missing): `MONGO_URI`, `JWT_SECRET`, `GMAIL_USER`,
 `GMAIL_APP_PASSWORD`, `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`, `ENCRYPTION_KEY` (exactly 32 chars).

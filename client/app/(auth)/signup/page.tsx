@@ -26,7 +26,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { ClearSessionButton } from "@/components/auth/ClearSessionButton";
+import { GitHubMark } from "@/components/brand/GitHubMark";
+import { GoogleMark } from "@/components/brand/GoogleMark";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ApiRequestError } from "@/lib/api/client";
 
@@ -125,7 +126,7 @@ export default function SignupPage() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" variant="brand" className="w-full" disabled={submitting}>
               {submitting ? "Creating account..." : "Sign up"}
             </Button>
           </form>
@@ -142,9 +143,11 @@ export default function SignupPage() {
 
         <div className="grid grid-cols-1 gap-3">
           <Button type="button" variant="outline" onClick={() => goToProvider("google")}>
+            <GoogleMark />
             Continue with Google
           </Button>
           <Button type="button" variant="outline" onClick={() => goToProvider("github")}>
+            <GitHubMark />
             Continue with GitHub
           </Button>
         </div>
@@ -155,7 +158,6 @@ export default function SignupPage() {
           Log in
         </Link>
       </CardFooter>
-      <ClearSessionButton />
     </Card>
   );
 }

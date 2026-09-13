@@ -5,6 +5,7 @@ import { safeFormatDistanceToNow } from '@/lib/formatDate';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
+import { integrationCardHover, integrationCardSpring } from './integrationCardMotion';
 
 interface GmailCardProps {
   message: GmailMessage;
@@ -34,38 +35,40 @@ export function GmailCard({ message }: GmailCardProps) {
       {...listeners}
       {...attributes}
       onClick={handleClick}
-      whileHover={{ scale: 1.01 }}
+      whileHover={isDragging ? undefined : integrationCardHover}
+      transition={integrationCardSpring}
       className={cn(
-        "p-3 bg-card border border-border rounded-lg cursor-pointer transition-all",
-        "hover:border-accent/30 hover:shadow-md",
-        message.unread && "border-l-2 border-l-accent",
-        isDragging && "opacity-50 shadow-xl rotate-2 cursor-grabbing"
+        "integration-card",
+        message.unread && "border-l-2 border-l-brand pl-3",
+        isDragging && "integration-card-dragging",
       )}
     >
-      <div className="flex items-start gap-2 mb-2">
-        <Mail className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
+      <div className="mb-2.5 flex items-start gap-2.5">
+        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-500">
+          <Mail className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-foreground truncate">{message.from}</p>
+            <p className="truncate text-sm font-medium text-foreground">{message.from}</p>
             {message.unread && (
-              <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-accent/15 text-accent font-medium shrink-0">
+              <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand">
                 New
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground truncate">{message.fromEmail}</p>
+          <p className="truncate text-xs text-muted-foreground">{message.fromEmail}</p>
         </div>
       </div>
-      
-      <h4 className="text-sm font-medium text-foreground mb-1 line-clamp-1">
+
+      <h4 className="mb-1 line-clamp-1 text-sm font-medium text-foreground">
         {message.subject}
       </h4>
-      
-      <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+
+      <p className="mb-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
         {message.snippet}
       </p>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground">
         {safeFormatDistanceToNow(message.date, { addSuffix: true })}
       </p>
     </motion.div>

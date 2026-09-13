@@ -5,6 +5,7 @@ import { safeFormatDistanceToNow } from '@/lib/formatDate';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
+import { integrationCardHover, integrationCardSpring } from './integrationCardMotion';
 
 interface GitHubPRCardProps {
   pr: GitHubPR;
@@ -22,6 +23,15 @@ export function GitHubPRCard({ pr }: GitHubPRCardProps) {
   } : undefined;
 
   const getStateColor = () => {
+    switch (pr.state) {
+      case 'open': return 'text-status-open bg-status-open/15';
+      case 'merged': return 'text-violet-400 bg-violet-500/15';
+      case 'closed': return 'text-red-400 bg-red-500/15';
+      default: return 'text-muted-foreground bg-muted';
+    }
+  };
+
+  const getIconColor = () => {
     switch (pr.state) {
       case 'open': return 'text-status-open';
       case 'merged': return 'text-violet-400';
@@ -43,22 +53,27 @@ export function GitHubPRCard({ pr }: GitHubPRCardProps) {
       {...listeners}
       {...attributes}
       onClick={handleClick}
-      whileHover={{ scale: 1.01 }}
-      className={cn(
-        "p-3 bg-card border border-border rounded-lg cursor-grab transition-all",
-        "hover:border-accent/30 hover:shadow-md",
-        isDragging && "opacity-50 shadow-xl rotate-2"
-      )}
+      whileHover={isDragging ? undefined : integrationCardHover}
+      transition={integrationCardSpring}
+      className={cn("integration-card", isDragging && "integration-card-dragging")}
     >
-      <div className="flex items-start gap-2 mb-2">
-        <GitPullRequest className={cn("w-4 h-4 mt-0.5 flex-shrink-0", getStateColor())} />
-        <p className="text-xs text-muted-foreground truncate">{pr.repository}</p>
+      <div className="mb-2.5 flex items-start gap-2.5">
+        <span className={cn(
+          "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-personal-soft",
+          getIconColor(),
+        )}>
+          <GitPullRequest className="h-3.5 w-3.5" />
+        </span>
+        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{pr.repository}</p>
+        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", getStateColor())}>
+          {pr.state}
+        </span>
       </div>
-      
-      <h4 className="text-sm font-medium text-foreground mb-2 line-clamp-2">
+
+      <h4 className="mb-2 line-clamp-2 text-sm font-medium text-foreground">
         {pr.title}
       </h4>
-      
+
       <p className="text-xs text-muted-foreground">
         #{pr.number} · {safeFormatDistanceToNow(pr.createdAt, { addSuffix: true })} · {pr.author}
       </p>

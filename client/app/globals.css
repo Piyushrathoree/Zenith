@@ -50,6 +50,8 @@
   --font-mono: var(--font-geist-mono), monospace;
   --font-alan: var(--font-alan), "AlanSans", ui-sans-serif, system-ui, sans-serif;
   --font-instrument: var(--font-instrument), "InstrumentSerif", ui-sans-serif, system-ui, sans-serif;
+  --spacing-sidebar: var(--sidebar-width);
+  --spacing-header: var(--header-height);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -218,9 +220,10 @@
   }
 
   .task-card {
-    @apply bg-card border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing;
-    @apply transition-all duration-200 ease-out;
-    @apply hover:border-accent/30 hover:shadow-lg hover:shadow-accent/5;
+    @apply box-border bg-card rounded-lg p-3 cursor-grab active:cursor-grabbing;
+    @apply border-2 border-foreground/20;
+    @apply transition-[box-shadow,border-color] duration-200 ease-out;
+    @apply hover:border-foreground/35 hover:shadow-sm;
   }
 
   .task-card-dragging {
@@ -234,7 +237,7 @@
   }
 
   .sidebar-nav-item.active {
-    @apply bg-accent/10 text-accent;
+    @apply bg-muted text-foreground;
   }
 
   .tag-work {
@@ -269,6 +272,41 @@
 
   .integration-icon.active {
     @apply bg-accent/15 text-accent ring-2 ring-accent/30;
+  }
+
+  .integration-card {
+    @apply rounded-xl border border-border bg-card p-3.5 cursor-grab;
+    @apply transition-[box-shadow,border-color,transform] duration-300 ease-out;
+    @apply hover:border-brand/25;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.7),
+      inset 0 0 0 1px rgb(0 0 0 / 0.015),
+      0 1px 2px 0 rgb(0 0 0 / 0.05),
+      0 10px 26px -16px rgb(0 0 0 / 0.12);
+  }
+
+  .integration-card:hover {
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.04),
+      0 14px 34px -14px rgb(0 0 0 / 0.14);
+  }
+
+  .dark .integration-card {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.06),
+      inset 0 0 0 1px rgb(255 255 255 / 0.02),
+      0 1px 2px 0 rgb(0 0 0 / 0.3),
+      0 10px 26px -16px rgb(0 0 0 / 0.5);
+  }
+
+  .dark .integration-card:hover {
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.3),
+      0 14px 34px -14px rgb(0 0 0 / 0.55);
+  }
+
+  .integration-card-dragging {
+    @apply opacity-50 shadow-xl rotate-2 cursor-grabbing scale-[1.02];
   }
 
   .kanban-column {

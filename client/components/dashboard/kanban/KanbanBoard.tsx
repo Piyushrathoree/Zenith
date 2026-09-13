@@ -28,7 +28,7 @@ export function KanbanBoard() {
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="flex gap-4 p-4 min-w-max h-full">
+            <div className="flex gap-3 p-3 min-w-max h-full">
               {columns.map((column) => (
                 <KanbanColumn
                   key={column.id}

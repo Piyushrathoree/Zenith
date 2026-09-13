@@ -96,9 +96,9 @@ export function TaskDetailModal() {
                 className="mt-1"
               >
                 {selectedTask.completed ? (
-                  <CheckCircle2 className="w-6 h-6 text-accent" />
+              className="h-6 w-6 text-brand"
                 ) : (
-                  <Circle className="w-6 h-6 text-muted-foreground hover:text-accent transition-colors" />
+                  <Circle className="w-6 h-6 text-muted-foreground hover:text-brand transition-colors" />
                 )}
               </button>
               <div className="flex-1">

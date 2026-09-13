@@ -5,6 +5,7 @@ import { safeFormatDistanceToNow } from '@/lib/formatDate';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
+import { integrationCardHover, integrationCardSpring } from './integrationCardMotion';
 
 interface NotionCardProps {
   page: NotionPage;
@@ -34,26 +35,25 @@ export function NotionCard({ page }: NotionCardProps) {
       {...listeners}
       {...attributes}
       onClick={handleClick}
-      whileHover={{ scale: 1.01 }}
-      className={cn(
-        "p-3 bg-card border border-border rounded-lg cursor-pointer transition-all",
-        "hover:border-accent/30 hover:shadow-md",
-        isDragging && "opacity-50 shadow-xl rotate-2 cursor-grabbing"
-      )}
+      whileHover={isDragging ? undefined : integrationCardHover}
+      transition={integrationCardSpring}
+      className={cn("integration-card", isDragging && "integration-card-dragging")}
     >
       <div className="flex items-start gap-3">
-        <div className="text-2xl">{page.icon || <FileText className="w-6 h-6 text-muted-foreground" />}</div>
-        <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-medium text-foreground mb-1 line-clamp-1">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">
+          {page.icon || <FileText className="h-4 w-4 text-muted-foreground" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h4 className="mb-1 line-clamp-1 text-sm font-medium text-foreground">
             {page.title}
           </h4>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground font-medium">
+          <div className="mb-2">
+            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {page.workspace}
             </span>
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="w-3 h-3" />
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Clock className="h-3 w-3" />
             <span>Edited {safeFormatDistanceToNow(page.lastEdited, { addSuffix: true })}</span>
           </div>
         </div>

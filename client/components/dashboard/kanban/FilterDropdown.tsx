@@ -58,13 +58,13 @@ export function FilterDropdown({
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-2 px-3 py-1.5 hover:bg-muted rounded-lg transition-colors",
-          hasActiveFilters && "bg-accent/10 text-accent"
+          hasActiveFilters && "bg-muted text-foreground"
         )}
       >
-        <Filter className="w-4 h-4" />
+        <Filter className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm">Filter</span>
         {hasActiveFilters && (
-          <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+          <span className="w-1.5 h-1.5 rounded-full bg-brand" />
         )}
       </button>
 
@@ -89,7 +89,7 @@ export function FilterDropdown({
                 {hasActiveFilters && (
                   <button
                     onClick={onReset}
-                    className="text-xs text-accent hover:underline"
+                    className="text-xs text-muted-foreground hover:text-foreground hover:underline"
                   >
                     Reset
                   </button>

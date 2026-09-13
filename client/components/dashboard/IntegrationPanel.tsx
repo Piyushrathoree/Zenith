@@ -79,9 +79,9 @@ function IntegrationConnectPrompt({
   const Icon = meta.icon;
 
   return (
-    <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-        <Icon className="w-5 h-5 text-muted-foreground" />
+    <div className="flex flex-col items-center gap-4 px-4 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft shadow-inset-soft">
+        <Icon className="h-5 w-5 text-brand" />
       </div>
       <div className="space-y-1">
         <h3 className="text-sm font-medium text-foreground">
@@ -110,9 +110,9 @@ function IntegrationUpgradePrompt({
   const Icon = meta.icon;
 
   return (
-    <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-        <Icon className="w-5 h-5 text-muted-foreground" />
+    <div className="flex flex-col items-center gap-4 px-4 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft shadow-inset-soft">
+        <Icon className="h-5 w-5 text-brand" />
       </div>
       <div className="space-y-1">
         <h3 className="text-sm font-medium text-foreground">
@@ -145,7 +145,7 @@ function IntegrationInlineNotice({
   onReconnect: () => void;
 }) {
   return (
-    <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+    <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3.5 shadow-inset-soft">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-foreground">{title}</p>
         <Button
@@ -174,14 +174,14 @@ function IntegrationEmptyState({ provider }: { provider: IntegrationProvider }) 
 /** One skeleton placeholder, loosely shaped like the real provider cards. */
 function IntegrationCardSkeleton() {
   return (
-    <div className="p-3 bg-card border border-border rounded-lg space-y-2.5">
-      <div className="flex items-center gap-2">
-        <div className="w-4 h-4 bg-muted/50 animate-pulse rounded" />
-        <div className="h-3 w-24 bg-muted/50 animate-pulse rounded" />
+    <div className="integration-card pointer-events-none space-y-2.5">
+      <div className="flex items-center gap-2.5">
+        <div className="h-7 w-7 animate-pulse rounded-lg bg-muted/60" />
+        <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
       </div>
-      <div className="h-3.5 w-full bg-muted/50 animate-pulse rounded" />
-      <div className="h-3.5 w-2/3 bg-muted/50 animate-pulse rounded" />
-      <div className="h-2.5 w-1/2 bg-muted/50 animate-pulse rounded" />
+      <div className="h-3.5 w-full animate-pulse rounded bg-muted/60" />
+      <div className="h-3.5 w-2/3 animate-pulse rounded bg-muted/60" />
+      <div className="h-2.5 w-1/2 animate-pulse rounded bg-muted/60" />
     </div>
   );
 }
@@ -283,7 +283,7 @@ export function IntegrationPanel() {
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: 20 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="w-sidebar h-screen flex flex-col bg-card border-l border-border overflow-hidden"
+        className="flex h-screen w-sidebar flex-col overflow-hidden border-l border-border bg-card/95 shadow-soft backdrop-blur-sm"
       >
         {/* Header */}
         <div className="p-4 border-b border-border">
@@ -334,16 +334,16 @@ export function IntegrationPanel() {
 
           {/* GitHub Tabs */}
           {activeIntegration === "github" && (
-            <div className="flex gap-1 p-1 bg-muted rounded-lg">
+            <div className="flex gap-1 rounded-xl bg-muted/80 p-1 inset-sunken">
               {(["issues", "prs"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setIntegrationTab(tab)}
                   className={cn(
-                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize",
+                    "flex-1 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all duration-200",
                     integrationTab === tab
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-card text-foreground shadow-inset-soft"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {tab === "prs" ? "PRs" : tab}

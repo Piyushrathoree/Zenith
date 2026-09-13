@@ -61,10 +61,10 @@ export function CalendarView() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden p-4">
+    <div className="flex-1 flex flex-col h-full overflow-hidden p-3">
       {/* Calendar Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-foreground">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-medium text-foreground">
           {format(currentMonth, "MMMM yyyy")}
         </h2>
         <div className="flex items-center gap-2">
@@ -124,7 +124,7 @@ export function CalendarView() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: (weekIdx * 7 + dayIdx) * 0.01 }}
                     className={cn(
-                      "min-h-24 p-1.5 rounded-lg border border-border/50 transition-all group",
+                      "min-h-20 p-1.5 rounded-lg border border-border/50 transition-all group",
                       isCurrentMonth ? "bg-card" : "bg-muted/30",
                       isCurrentDay &&
                         "ring-2 ring-accent ring-offset-2 ring-offset-background",
