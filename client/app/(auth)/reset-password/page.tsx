@@ -74,14 +74,14 @@ function ResetPasswordForm() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Reset password</CardTitle>
+    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur">
+      <CardHeader className="space-y-2">
+        <CardTitle className="font-instrument text-3xl font-medium tracking-tight">Reset password</CardTitle>
         <CardDescription>Choose a new password for your account.</CardDescription>
       </CardHeader>
       <CardContent>
         {!token ? (
-          <p className="text-sm text-destructive">
+          <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             This reset link is invalid or missing a token. Please request a new one.
           </p>
         ) : (

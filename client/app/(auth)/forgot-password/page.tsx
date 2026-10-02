@@ -59,16 +59,16 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Forgot password</CardTitle>
+    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur">
+      <CardHeader className="space-y-2">
+        <CardTitle className="font-instrument text-3xl font-medium tracking-tight">Forgot password</CardTitle>
         <CardDescription>
           Enter your email and we will send you a link to reset your password.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {sent ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground">
             Check your inbox for a reset link. It expires in 30 minutes.
           </p>
         ) : (

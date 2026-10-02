@@ -70,9 +70,9 @@ export default function LoginPage() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Log in</CardTitle>
+    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur">
+      <CardHeader className="space-y-2">
+        <CardTitle className="font-instrument text-3xl font-medium tracking-tight">Log in</CardTitle>
         <CardDescription>Welcome back, enter your details to continue.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -119,17 +119,27 @@ export default function LoginPage() {
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t" />
           </div>
-          <div className="relative flex justify-center text-xs uppercase">
+          <div className="relative flex justify-center text-xs uppercase tracking-wide">
             <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3">
-          <Button type="button" variant="outline" onClick={() => goToProvider("google")}>
+          <Button
+            type="button"
+            variant="outline"
+            className="justify-center bg-background/60"
+            onClick={() => goToProvider("google")}
+          >
             <GoogleMark />
             Continue with Google
           </Button>
-          <Button type="button" variant="outline" onClick={() => goToProvider("github")}>
+          <Button
+            type="button"
+            variant="outline"
+            className="justify-center bg-background/60"
+            onClick={() => goToProvider("github")}
+          >
             <GitHubMark />
             Continue with GitHub
           </Button>
