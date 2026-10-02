@@ -79,12 +79,14 @@ export default function SignupPage() {
   };
 
   return (
-    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur">
-      <CardHeader className="space-y-2">
-        <CardTitle className="font-instrument text-3xl font-medium tracking-tight">Create your account</CardTitle>
+    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur supports-[backdrop-filter]:bg-card/90">
+      <CardHeader className="space-y-2 px-5 pt-6 sm:px-7 sm:pt-7">
+        <CardTitle className="font-instrument text-2xl font-medium tracking-tight sm:text-3xl">
+          Create your account
+        </CardTitle>
         <CardDescription>Start calm, stay focused, end confident.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 px-5 pb-5 sm:px-7 sm:pb-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -94,7 +96,7 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ada Lovelace" autoComplete="name" {...field} />
+                    <Input placeholder="Ada Lovelace" autoComplete="name" className="h-11" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -107,7 +109,13 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" autoComplete="email" {...field} />
+                    <Input
+                      type="email"
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      className="h-11"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -120,13 +128,13 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
+                    <Input type="password" autoComplete="new-password" className="h-11" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" variant="brand" className="w-full" disabled={submitting}>
+            <Button type="submit" variant="brand" className="h-11 w-full" disabled={submitting}>
               {submitting ? "Creating account..." : "Sign up"}
             </Button>
           </form>
@@ -145,7 +153,7 @@ export default function SignupPage() {
           <Button
             type="button"
             variant="outline"
-            className="justify-center bg-background/60"
+            className="h-11 justify-center bg-background/60"
             onClick={() => goToProvider("google")}
           >
             <GoogleMark />
@@ -154,7 +162,7 @@ export default function SignupPage() {
           <Button
             type="button"
             variant="outline"
-            className="justify-center bg-background/60"
+            className="h-11 justify-center bg-background/60"
             onClick={() => goToProvider("github")}
           >
             <GitHubMark />
@@ -162,7 +170,7 @@ export default function SignupPage() {
           </Button>
         </div>
       </CardContent>
-      <CardFooter className="justify-center text-sm text-muted-foreground">
+      <CardFooter className="justify-center px-5 pb-6 text-center text-sm text-muted-foreground sm:px-7 sm:pb-7">
         Already have an account?
         <Link href="/login" className="ml-1 font-medium text-foreground hover:underline">
           Log in
