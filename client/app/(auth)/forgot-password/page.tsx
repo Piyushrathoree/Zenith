@@ -59,16 +59,18 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Forgot password</CardTitle>
+    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur supports-[backdrop-filter]:bg-card/90">
+      <CardHeader className="space-y-2 px-5 pt-6 sm:px-7 sm:pt-7">
+        <CardTitle className="font-instrument text-2xl font-medium tracking-tight sm:text-3xl">
+          Forgot password
+        </CardTitle>
         <CardDescription>
           Enter your email and we will send you a link to reset your password.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 pb-5 sm:px-7 sm:pb-6">
         {sent ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="rounded-xl border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground">
             Check your inbox for a reset link. It expires in 30 minutes.
           </p>
         ) : (
@@ -81,20 +83,26 @@ export default function ForgotPasswordPage() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="you@example.com" autoComplete="email" {...field} />
+                      <Input
+                        type="email"
+                        placeholder="you@example.com"
+                        autoComplete="email"
+                        className="h-11"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" variant="brand" className="w-full" disabled={submitting}>
+              <Button type="submit" variant="brand" className="h-11 w-full" disabled={submitting}>
                 {submitting ? "Sending..." : "Send reset link"}
               </Button>
             </form>
           </Form>
         )}
       </CardContent>
-      <CardFooter className="justify-center text-sm text-muted-foreground">
+      <CardFooter className="justify-center px-5 pb-6 text-center text-sm text-muted-foreground sm:px-7 sm:pb-7">
         Remembered your password?
         <Link href="/login" className="ml-1 font-medium text-foreground hover:underline">
           Log in

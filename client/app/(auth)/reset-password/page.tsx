@@ -74,14 +74,16 @@ function ResetPasswordForm() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Reset password</CardTitle>
+    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur supports-[backdrop-filter]:bg-card/90">
+      <CardHeader className="space-y-2 px-5 pt-6 sm:px-7 sm:pt-7">
+        <CardTitle className="font-instrument text-2xl font-medium tracking-tight sm:text-3xl">
+          Reset password
+        </CardTitle>
         <CardDescription>Choose a new password for your account.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 pb-5 sm:px-7 sm:pb-6">
         {!token ? (
-          <p className="text-sm text-destructive">
+          <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             This reset link is invalid or missing a token. Please request a new one.
           </p>
         ) : (
@@ -94,20 +96,20 @@ function ResetPasswordForm() {
                   <FormItem>
                     <FormLabel>New password</FormLabel>
                     <FormControl>
-                      <Input type="password" autoComplete="new-password" {...field} />
+                      <Input type="password" autoComplete="new-password" className="h-11" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" variant="brand" className="w-full" disabled={submitting}>
+              <Button type="submit" variant="brand" className="h-11 w-full" disabled={submitting}>
                 {submitting ? "Resetting..." : "Reset password"}
               </Button>
             </form>
           </Form>
         )}
       </CardContent>
-      <CardFooter className="justify-center text-sm text-muted-foreground">
+      <CardFooter className="justify-center px-5 pb-6 text-center text-sm text-muted-foreground sm:px-7 sm:pb-7">
         <Link href="/login" className="font-medium text-foreground hover:underline">
           Back to log in
         </Link>

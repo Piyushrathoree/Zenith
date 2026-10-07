@@ -70,12 +70,12 @@ export default function LoginPage() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Log in</CardTitle>
+    <Card className="rounded-2xl border-border/90 bg-card/95 shadow-inset-soft backdrop-blur supports-[backdrop-filter]:bg-card/90">
+      <CardHeader className="space-y-2 px-5 pt-6 sm:px-7 sm:pt-7">
+        <CardTitle className="font-instrument text-2xl font-medium tracking-tight sm:text-3xl">Log in</CardTitle>
         <CardDescription>Welcome back, enter your details to continue.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 px-5 pb-5 sm:px-7 sm:pb-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -85,7 +85,13 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" autoComplete="email" {...field} />
+                    <Input
+                      type="email"
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      className="h-11"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -103,13 +109,13 @@ export default function LoginPage() {
                     </Link>
                   </div>
                   <FormControl>
-                    <Input type="password" autoComplete="current-password" {...field} />
+                    <Input type="password" autoComplete="current-password" className="h-11" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" variant="brand" className="w-full" disabled={submitting}>
+            <Button type="submit" variant="brand" className="h-11 w-full" disabled={submitting}>
               {submitting ? "Signing in..." : "Log in"}
             </Button>
           </form>
@@ -119,23 +125,33 @@ export default function LoginPage() {
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t" />
           </div>
-          <div className="relative flex justify-center text-xs uppercase">
+          <div className="relative flex justify-center text-xs uppercase tracking-wide">
             <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3">
-          <Button type="button" variant="outline" onClick={() => goToProvider("google")}>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 justify-center bg-background/60"
+            onClick={() => goToProvider("google")}
+          >
             <GoogleMark />
             Continue with Google
           </Button>
-          <Button type="button" variant="outline" onClick={() => goToProvider("github")}>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 justify-center bg-background/60"
+            onClick={() => goToProvider("github")}
+          >
             <GitHubMark />
             Continue with GitHub
           </Button>
         </div>
       </CardContent>
-      <CardFooter className="justify-center text-sm text-muted-foreground">
+      <CardFooter className="justify-center px-5 pb-6 text-center text-sm text-muted-foreground sm:px-7 sm:pb-7">
         Don&apos;t have an account?
         <Link href="/signup" className="ml-1 font-medium text-foreground hover:underline">
           Sign up
