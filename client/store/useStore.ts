@@ -288,7 +288,10 @@ export const useStore = create<AppState>((set, get) => ({
     filterStatus: 'all',
     selectedIntegrationDetail: null,
     showIntegrationModal: false,
-    ...loadWeeklyRituals(),
+    ...(() => {
+        const { weekKey, weeklyGoals, weeklyPriorities } = loadWeeklyRituals();
+        return { weeklyWeekKey: weekKey, weeklyGoals, weeklyPriorities };
+    })(),
 
     setActiveIntegration: (integration) => set({ activeIntegration: integration }),
     setSelectedTask: (task) => set({ selectedTask: task }),
