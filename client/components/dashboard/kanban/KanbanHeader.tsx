@@ -8,6 +8,7 @@ import {
   User,
   LayoutGrid,
   CalendarDays,
+  Clock,
   Sun,
   Moon,
   ChevronDown,
@@ -101,6 +102,18 @@ export function KanbanHeader() {
           >
             <CalendarDays className="w-4 h-4" />
             <span>Calendars</span>
+          </button>
+          <button
+            onClick={() => setViewMode("day")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+              viewMode === "day"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Day</span>
           </button>
         </div>
 

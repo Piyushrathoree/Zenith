@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidTimeZone } from '../../utils/time.ts';
 
 // ─── Shared reusable fields ────────────────────────────────────────────────────
 
@@ -31,6 +32,10 @@ export const UpdateUserSchema = z.object({
     name: z.string().min(2).max(20).optional(),
     password: passwordSchema.optional(),
     avatarUrl: z.string().url('Invalid avatar URL').optional(),
+    timezone: z.string().refine(isValidTimeZone, 'Unknown timezone').optional(),
+    weekStartsOn: z.union([z.literal(0), z.literal(1)]).optional(),
+    emailPrefs: z.object({ weeklyBacklogDigest: z.boolean() }).optional(),
+    calendarReminderMinutes: z.number().int().min(0).max(120).optional(),
 }).refine(data => Object.keys(data).length > 0, {
     message: 'At least one field must be provided for update',
 });

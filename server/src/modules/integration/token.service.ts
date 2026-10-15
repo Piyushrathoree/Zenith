@@ -3,6 +3,7 @@ import { decryptData, encryptData } from '../../utils/crypto.ts';
 import { env } from '../../config/env.ts';
 import { OAUTH_CONFIG } from './oauth.config.ts';
 import type { IIntegration } from './integration.model.ts';
+import { IntegrationApiError, IntegrationAuthError } from './adapters/types.ts';
 
 // Refresh a token slightly before it actually expires so a request in flight
 // never gets caught holding a token that dies mid request.
@@ -14,12 +15,15 @@ function isExpired(expiresAt?: Date): boolean {
 }
 
 /**
- * markIntegrationRevoked: flips an integration to the "revoked" status and
- * persists it. Shared by the token refresh path and the controller so both
- * report the same terminal state when a provider stops honoring our tokens.
+ * markIntegrationRevoked: flips an integration to the "revoked" status, records
+ * lastError='needs_reconnect', and persists it. Shared by the token refresh path
+ * and the controller so both report the same terminal state when a provider
+ * stops honoring our tokens.
  */
 export async function markIntegrationRevoked(integration: HydratedDocument<IIntegration>): Promise<void> {
     integration.status = 'revoked';
+    integration.lastError = 'needs_reconnect';
+    integration.lastErrorAt = new Date();
     await integration.save();
 }
 
@@ -32,7 +36,7 @@ export async function resolveAccessToken(integration: HydratedDocument<IIntegrat
     const accessToken = decryptData(integration.accessToken, env.ENCRYPTION_KEY);
     if (!accessToken) {
         await markIntegrationRevoked(integration);
-        throw new Error('Stored access token could not be decrypted');
+        throw new IntegrationAuthError(integration.provider, 401, 'stored access token could not be decrypted');
     }
 
     if (integration.provider !== 'gmail' || !isExpired(integration.expiresAt)) {
@@ -42,7 +46,7 @@ export async function resolveAccessToken(integration: HydratedDocument<IIntegrat
     const refreshToken = decryptData(integration.refreshToken, env.ENCRYPTION_KEY);
     if (!refreshToken) {
         await markIntegrationRevoked(integration);
-        throw new Error('Gmail token expired and no refresh token is stored, the user must reconnect');
+        throw new IntegrationAuthError('gmail', 401, 'token expired and no refresh token is stored');
     }
 
     const config = OAUTH_CONFIG.gmail;
@@ -59,9 +63,21 @@ export async function resolveAccessToken(integration: HydratedDocument<IIntegrat
         body,
     });
 
-    if (!response.ok) {
+    // Google answers a dead refresh token with 400 invalid_grant (or 401). While the Google app
+    // is in Testing mode this happens every 7 days, so it is expected: mark the integration
+    // revoked with needs_reconnect so the UI offers a one click reconnect. Any other failure
+    // (5xx, network) is transient and must not revoke anything.
+    if (response.status === 400 || response.status === 401) {
         await markIntegrationRevoked(integration);
-        throw new Error(`Gmail token refresh failed with status ${response.status}`);
+        throw new IntegrationAuthError('gmail', response.status, 'token refresh rejected, reconnect required');
+    }
+    if (!response.ok) {
+        throw new IntegrationApiError(
+            'gmail',
+            response.status,
+            response.status === 429 ? 'rate_limited' : 'provider_down',
+            'token refresh failed'
+        );
     }
 
     const data = (await response.json()) as { access_token: string; expires_in?: number };

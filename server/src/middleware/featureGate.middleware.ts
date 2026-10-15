@@ -50,6 +50,12 @@ export const gateTaskLimit = async (req: Request, res: Response, next: NextFunct
         return;
     }
 
+    // Backlog tasks have no day, so they never count toward the tasks per day limit.
+    if (req.body?.inBacklog === true) {
+        next();
+        return;
+    }
+
     const dueRaw = req.body?.due;
     if (req.method !== 'POST' && dueRaw === undefined) {
         next();

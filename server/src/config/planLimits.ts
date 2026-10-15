@@ -8,7 +8,7 @@
  *   - rateLimit     → max API requests per minute (enforced by rateLimit.middleware.ts)
  *   - maxTasks      → max tasks on a single calendar day (gateTaskLimit)
  *   - plannerDays   → 1 = today + tomorrow only (enforced by gatePlannerRange())
- *   - integrations  → enforced by gateIntegrations()
+ *   - integrations  → no longer enforced: integrations are open to every plan (roadmap v2, D1)
  */
 export const PLAN_LIMITS = {
     free: {

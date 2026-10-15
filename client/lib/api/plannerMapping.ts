@@ -106,7 +106,7 @@ function toDateString(value?: string): string {
 }
 
 /** Converts a yyyy-MM-dd into UTC midnight ISO for the API. */
-function toIsoString(value: string): string | undefined {
+export function toIsoString(value: string): string | undefined {
   const dayOnly = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (dayOnly) return `${dayOnly[1]}-${dayOnly[2]}-${dayOnly[3]}T00:00:00.000Z`;
   const parsed = new Date(value);
@@ -120,10 +120,13 @@ export function mapToClientTask(serverTask: ServerTask): Task {
   return {
     id: serverTask._id,
     title: serverTask.taskDescription,
-    time: serverTask.startTime,
+    time: serverTask.startTime || undefined,
     duration: serverTask.duration || "1:00",
     tag,
-    date: toDateString(serverTask.due),
+    // A backlog task has no day, so it gets an empty date instead of today.
+    date: serverTask.inBacklog ? "" : toDateString(serverTask.due),
+    inBacklog: Boolean(serverTask.inBacklog),
+    recurringTaskId: serverTask.recurringTaskId,
     completed: statusToCompleted(serverTask.status),
     notes: serverTask.notes,
     subtasks: Array.isArray(serverTask.subtasks) ? serverTask.subtasks : [],
@@ -139,7 +142,7 @@ export function mapToClientDailyTask(serverTask: ServerTask): DailyTask {
   return {
     id: serverTask._id,
     title: serverTask.taskDescription,
-    time: serverTask.startTime,
+    time: serverTask.startTime || undefined,
     duration: serverTask.duration || "0:30",
     completed: statusToCompleted(serverTask.status),
     tag,
@@ -164,6 +167,7 @@ export function mapToCreateServerTaskPayload(task: Omit<Task, "id">): {
       externalId: task.externalId,
       link: task.link,
       subtasks: task.subtasks ?? [],
+      inBacklog: task.inBacklog ? true : undefined,
     },
   };
 }
@@ -186,6 +190,7 @@ export function mapToUpdateServerTaskPayload(updates: Partial<Task>): UpdateTask
   if (updates.externalId !== undefined) payload.externalId = updates.externalId;
   if (updates.link !== undefined) payload.link = updates.link;
   if (updates.subtasks !== undefined) payload.subtasks = updates.subtasks;
+  if (updates.inBacklog !== undefined) payload.inBacklog = updates.inBacklog;
 
   return payload;
 }
@@ -211,6 +216,8 @@ export function mergeServerTaskUpdate(local: Task, serverTask: ServerTask): Task
     externalId: mapped.externalId,
     link: mapped.link,
     subtasks: mapped.subtasks,
+    inBacklog: mapped.inBacklog,
+    recurringTaskId: mapped.recurringTaskId,
   };
 }
 

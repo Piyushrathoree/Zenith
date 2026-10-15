@@ -2,8 +2,12 @@ import type { Request, Response } from 'express';
 import { Task } from './task.model.ts';
 import { Channel } from './channel.model.ts';
 import { DailyPlanner } from './dailyPlanner.model.ts';
+import { RecurringTask } from './recurringTask.model.ts';
+import { runRolloverForUser } from './rollover.ts';
+import { queueCalendarDelete, queueCalendarSync } from '../calendar/calendar.queue.ts';
 import { ApiError } from '../../utils/ApiError.ts';
 import { ApiResponse } from '../../utils/ApiResponse.ts';
+import { dateKeyToUtcMidnight, localDateKey, normalizeStartTime } from '../../utils/time.ts';
 
 // ════════════════════════════════════════════════════════
 // TASKS
@@ -25,7 +29,7 @@ function normalizeSubtasks(raw: unknown): { id: string; title: string; completed
 }
 
 export const createTask = async (req: Request, res: Response): Promise<void> => {
-    const { taskDescription, due, status, notes, duration, startTime, source, externalId, link, subtasks } = req.body;
+    const { taskDescription, due, status, notes, duration, startTime, source, externalId, link, subtasks, inBacklog } = req.body;
     const { channel } = req.params;
 
     if (!taskDescription) {
@@ -38,22 +42,47 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
         return;
     }
 
+    let normalizedStartTime: string | undefined;
+    if (startTime !== undefined) {
+        const normalized = normalizeStartTime(String(startTime));
+        if (normalized === null) {
+            res.status(400).json(new ApiError(400, 'startTime must look like "HH:mm"'));
+            return;
+        }
+        normalizedStartTime = normalized;
+    }
+
+    // One task per integration item: adding the same item again returns the task it already has.
+    if (source && externalId) {
+        const existing = await Task.findOne({ userId: req.userId, source, externalId });
+        if (existing) {
+            res.status(200).json(new ApiResponse(200, existing, 'Already planned'));
+            return;
+        }
+    }
+
+    // A backlog task has no day and no time, so any due or startTime sent with it is ignored.
+    const goesToBacklog = inBacklog === true;
     const task = new Task({
         taskDescription,
         status: status || 'todo',
         start: new Date(),
-        due,
+        due: goesToBacklog ? undefined : due,
         notes,
         duration,
-        startTime,
+        startTime: goesToBacklog ? '' : normalizedStartTime,
         source,
         externalId,
         link,
         subtasks: normalizeSubtasks(subtasks) ?? [],
         userId: req.userId,
         channel: channel || 'work',
+        inBacklog: goesToBacklog,
+        backloggedAt: goesToBacklog ? new Date() : undefined,
+        backlogReason: goesToBacklog ? 'manual' : undefined,
     });
     await task.save();
+    await queueCalendarSync(String(req.userId), [String(task._id)]);
 
     res.status(201).json(new ApiResponse(201, task, 'Task created successfully'));
 };
@@ -61,6 +90,12 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
 export const getAllTasks = async (req: Request, res: Response): Promise<void> => {
     const tasks = await Task.find({ userId: req.userId });
     res.status(200).json(new ApiResponse(200, tasks, 'Tasks fetched successfully'));
+};
+
+// Backlog: tasks with no day, newest first.
+export const getBacklog = async (req: Request, res: Response): Promise<void> => {
+    const tasks = await Task.find({ userId: req.userId, inBacklog: true }).sort({ backloggedAt: -1 });
+    res.status(200).json(new ApiResponse(200, tasks, 'Backlog fetched successfully'));
 };
 
 export const getTasksByChannel = async (req: Request, res: Response): Promise<void> => {
@@ -87,7 +122,7 @@ export const getTaskById = async (req: Request, res: Response): Promise<void> =>
 
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
     const { taskId } = req.params;
-    const { status, taskDescription, notes, due, channel, duration, startTime, source, externalId, link, subtasks } = req.body;
+    const { status, taskDescription, notes, due, channel, duration, startTime, source, externalId, link, subtasks, inBacklog } = req.body;
 
     if (source !== undefined && !VALID_TASK_SOURCES.includes(source)) {
         res.status(400).json(new ApiError(400, 'source must be one of github, gmail, or notion'));
@@ -101,7 +136,14 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
     if (due !== undefined) $set.due = due;
     if (channel !== undefined) $set.channel = channel;
     if (duration !== undefined) $set.duration = duration;
-    if (startTime !== undefined) $set.startTime = startTime;
+    if (startTime !== undefined) {
+        const normalized = normalizeStartTime(String(startTime));
+        if (normalized === null) {
+            res.status(400).json(new ApiError(400, 'startTime must look like "HH:mm"'));
+            return;
+        }
+        $set.startTime = normalized;
+    }
     if (source !== undefined) $set.source = source;
     if (externalId !== undefined) $set.externalId = externalId;
     if (link !== undefined) $set.link = link;
@@ -114,11 +156,42 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
         $set.subtasks = normalized;
     }
 
-    const task = Object.keys($set).length === 0
+    // Moving into the backlog clears the day and time. Moving out needs the new day.
+    const $unset: Record<string, ''> = {};
+    if (inBacklog === true) {
+        $set.inBacklog = true;
+        $set.backloggedAt = new Date();
+        $set.backlogReason = 'manual';
+        $set.startTime = '';
+        $unset.due = '';
+        delete $set.due; // a due sent in the same request is ignored
+    } else if (inBacklog === false) {
+        if (due === undefined) {
+            res.status(400).json(new ApiError(400, 'due is required when moving a task out of the backlog'));
+            return;
+        }
+        $set.inBacklog = false;
+        $unset.backloggedAt = '';
+        $unset.backlogReason = '';
+        $unset.backlogFromDue = '';
+    }
+
+    // Editing a recurring occurrence detaches it, so a later "Save for all future" leaves it alone.
+    const detachingFields = ['taskDescription', 'due', 'channel', 'duration', 'startTime', 'inBacklog'];
+    if (detachingFields.some((field) => req.body[field] !== undefined)) {
+        const existing = await Task.findOne({ _id: taskId, userId: req.userId }).select('recurringTaskId');
+        if (existing?.recurringTaskId) $set.recurrenceDetached = true;
+    }
+
+    const update: Record<string, unknown> = {};
+    if (Object.keys($set).length > 0) update.$set = $set;
+    if (Object.keys($unset).length > 0) update.$unset = $unset;
+
+    const task = Object.keys(update).length === 0
         ? await Task.findOne({ _id: taskId, userId: req.userId })
         : await Task.findOneAndUpdate(
             { _id: taskId, userId: req.userId },
-            { $set },
+            update,
             { new: true, runValidators: true }
         );
 
@@ -126,6 +199,8 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
         res.status(404).json(new ApiError(404, 'Task not found'));
         return;
     }
+
+    await queueCalendarSync(String(req.userId), [String(task._id)]);
 
     res.status(200).json(new ApiResponse(200, task, 'Task updated successfully'));
 };
@@ -139,12 +214,29 @@ export const deleteTask = async (req: Request, res: Response): Promise<void> => 
         return;
     }
 
+    // The task is gone from Zenith, so its calendar event goes too.
+    if (task.calendarEventId) await queueCalendarDelete(String(req.userId), [task.calendarEventId]);
+
+    // Remember the deleted day, so the hourly job does not bring the occurrence back.
+    if (task.recurringTaskId && task.occurrenceDate) {
+        await RecurringTask.updateOne(
+            { _id: task.recurringTaskId, userId: req.userId },
+            { $addToSet: { exceptions: task.occurrenceDate } }
+        );
+    }
+
     res.status(200).json(new ApiResponse(200, null, 'Task deleted successfully'));
 };
 
 // ════════════════════════════════════════════════════════
 // CHANNELS (Projects)
 // ════════════════════════════════════════════════════════
+
+// Carries unfinished tasks forward for the caller. Runs at most once a day per user.
+export const runRollover = async (req: Request, res: Response): Promise<void> => {
+    const result = await runRolloverForUser(req.userId!);
+    res.status(200).json(new ApiResponse(200, result, 'Rollover checked'));
+};
 
 export const getAllChannels = async (req: Request, res: Response): Promise<void> => {
     // Bug fix: old service had no userId filter — returned ALL channels globally
@@ -214,7 +306,7 @@ export const createDailyPlanner = async (req: Request, res: Response): Promise<v
 
     const planner = new DailyPlanner({
         notes,
-        date: new Date(),
+        date: dateKeyToUtcMidnight(localDateKey(new Date(), req.userTimezone ?? 'UTC')),
         userId: req.userId,
     });
     await planner.save();
@@ -223,15 +315,12 @@ export const createDailyPlanner = async (req: Request, res: Response): Promise<v
 };
 
 export const getTodaysPlan = async (req: Request, res: Response): Promise<void> => {
-    const startOfToday = new Date();
-    startOfToday.setUTCHours(0, 0, 0, 0);
-
-    const endOfToday = new Date();
-    endOfToday.setUTCHours(23, 59, 59, 999);
+    // "Today" is the user's local day, not the server's clock day.
+    const todayKey = localDateKey(new Date(), req.userTimezone ?? 'UTC');
 
     const plan = await DailyPlanner.findOne({
         userId: req.userId,
-        date: { $gte: startOfToday, $lte: endOfToday },
+        date: dateKeyToUtcMidnight(todayKey),
     }).populate('tasks');
 
     if (!plan) {

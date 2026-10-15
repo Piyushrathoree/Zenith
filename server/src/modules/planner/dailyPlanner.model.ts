@@ -10,6 +10,11 @@ export interface IDailyPlanner extends Document {
     userId: Types.ObjectId;
     tasks: Types.ObjectId[];
     notes?: string;
+    // Guided rituals (Phase 8)
+    plannedAt?: Date;
+    shutdownAt?: Date;
+    highlight?: string;
+    reflection?: string;
 }
 
 const dailyPlannerSchema = new Schema<IDailyPlanner>({
@@ -17,6 +22,10 @@ const dailyPlannerSchema = new Schema<IDailyPlanner>({
     userId: { type: Schema.Types.ObjectId, required: true },
     tasks: [{ type: Schema.Types.ObjectId, ref: 'Task' }],
     notes: { type: String },
+    plannedAt: { type: Date },
+    shutdownAt: { type: Date },
+    highlight: { type: String },
+    reflection: { type: String },
 });
 
 // Ensure one planner per user per day

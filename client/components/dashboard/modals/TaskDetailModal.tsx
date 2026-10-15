@@ -10,6 +10,7 @@ import {
   Clock,
   Plus,
   Trash2,
+  Inbox,
   Play,
   Github,
   ExternalLink,
@@ -17,7 +18,10 @@ import {
 import { useApp } from "@/context/AppContext";
 import { format, addDays, isSameDay, parse } from "date-fns";
 import { cn } from "@/lib/utils";
-import { GitHubIssue, Subtask } from "@/types";
+import { formatTime12h } from "@/lib/formatDate";
+import { buildRule, describeRule, parseRule, type RepeatPreset } from "@/lib/recurrence";
+import { RepeatPicker } from "./RepeatPicker";
+import { GitHubIssue, Subtask, Task } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
@@ -69,22 +73,74 @@ const DURATIONS = [
   { value: "2:00", label: "2 hr" },
 ];
 
+// Stored as 24h "HH:mm" (see docs/roadmap/phase-0-foundations.md). Shown with formatTime12h.
 const TIME_SLOTS = [
-  "7:00 am",
-  "8:00 am",
-  "9:00 am",
-  "10:00 am",
-  "11:00 am",
-  "12:00 pm",
-  "1:00 pm",
-  "2:00 pm",
-  "3:00 pm",
-  "4:00 pm",
-  "5:00 pm",
-  "6:00 pm",
-  "7:00 pm",
-  "8:00 pm",
+  "07:00",
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+  "20:00",
 ];
+
+/**
+ * Repeat settings for a task that belongs to a series. Save for all future applies the repeat
+ * rule to the series. Title, time and duration edits above still change only this day.
+ */
+function RepeatSection({ ruleId, task }: { ruleId: string; task: Task }) {
+  const { recurringRules, updateRecurringSeries, stopRecurringSeries } = useApp();
+  const rule = recurringRules.find((item) => item.id === ruleId);
+  const [repeat, setRepeat] = useState<{ preset: RepeatPreset; weekDays: number[] }>(() =>
+    parseRule(rule?.rrule ?? "")
+  );
+
+  if (!rule) return null;
+
+  const saveForFuture = () => {
+    const rrule = buildRule(repeat.preset, repeat.weekDays, task.date);
+    if (!rrule) {
+      stopRecurringSeries(rule.id);
+      return;
+    }
+    updateRecurringSeries(rule.id, {
+      title: task.title,
+      duration: task.duration,
+      startTime: task.time ?? "",
+      rrule,
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="mb-2 text-xs text-muted-foreground">Repeat</p>
+        <p className="mb-2 text-sm text-foreground">{describeRule(rule.rrule)}</p>
+        <RepeatPicker
+          preset={repeat.preset}
+          weekDays={repeat.weekDays}
+          monthDay={Number(task.date.slice(8, 10)) || undefined}
+          onChange={setRepeat}
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="brand" onClick={saveForFuture}>
+          Save for all future
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => stopRecurringSeries(rule.id)}>
+          Stop repeating
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function parseTaskDate(value: string) {
   return parse(value, "yyyy-MM-dd", new Date());
@@ -99,6 +155,7 @@ export function TaskDetailModal() {
     deleteTask,
     setFocusMode,
     setFocusTask,
+    sendToBacklog,
   } = useApp();
 
   const [title, setTitle] = useState("");
@@ -117,7 +174,8 @@ export function TaskDetailModal() {
 
   if (!showTaskModal || !selectedTask) return null;
 
-  const date = parseTaskDate(selectedTask.date);
+  // A backlog task has no day yet. Parsing "" would give an invalid date, so fall back to today for the picker.
+  const date = parseTaskDate(selectedTask.date || format(new Date(), "yyyy-MM-dd"));
   const subtasks = selectedTask.subtasks ?? [];
   const subDone = subtasks.filter((item) => item.completed).length;
   const githubIssue =
@@ -204,12 +262,24 @@ export function TaskDetailModal() {
               >
                 <Play className="h-4 w-4" />
               </button>
+              {!selectedTask.inBacklog && (
+                <button
+                  type="button"
+                  onClick={() => sendToBacklog(selectedTask.id)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Move to backlog"
+                  title="Move to backlog"
+                >
+                  <Inbox className="h-4 w-4" />
+                </button>
+              )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <button
                     type="button"
                     className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
                     aria-label="Delete task"
+                    title={selectedTask.recurringTaskId ? "Delete this occurrence" : "Delete task"}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -311,7 +381,7 @@ export function TaskDetailModal() {
                       className="flex w-full items-center gap-2 rounded-lg border border-foreground/10 bg-muted/40 px-3 py-2 text-sm hover:border-foreground/20"
                     >
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{format(date, "MMM d")}</span>
+                      <span>{selectedTask.inBacklog ? "Backlog" : format(date, "MMM d")}</span>
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="z-[60] w-auto p-0" align="start">
@@ -341,7 +411,7 @@ export function TaskDetailModal() {
                     </div>
                     <CalendarComponent
                       mode="single"
-                      selected={date}
+                      selected={selectedTask.inBacklog ? undefined : date}
                       onSelect={(d) =>
                         d &&
                         updateTask(selectedTask.id, {
@@ -367,7 +437,7 @@ export function TaskDetailModal() {
                           !selectedTask.time && "text-muted-foreground"
                         )}
                       >
-                        {selectedTask.time || "Anytime"}
+                        {selectedTask.time ? formatTime12h(selectedTask.time) : "Anytime"}
                       </span>
                     </button>
                   </PopoverTrigger>
@@ -401,7 +471,7 @@ export function TaskDetailModal() {
                               : "border-foreground/10 text-muted-foreground hover:text-foreground"
                           )}
                         >
-                          {slot}
+                          {formatTime12h(slot)}
                         </button>
                       ))}
                     </div>
@@ -409,6 +479,12 @@ export function TaskDetailModal() {
                 </Popover>
               </div>
             </div>
+
+            {selectedTask.recurringTaskId && (
+              <div className="mb-5">
+                <RepeatSection ruleId={selectedTask.recurringTaskId} task={selectedTask} />
+              </div>
+            )}
 
             <div>
               <p className="mb-2 text-xs text-muted-foreground">Duration</p>

@@ -50,6 +50,12 @@ export interface ServerTask {
   source?: ServerTaskSource;
   externalId?: string;
   link?: string;
+  inBacklog?: boolean;
+  backloggedAt?: string;
+  backlogReason?: "manual" | "auto";
+  recurringTaskId?: string;
+  occurrenceDate?: string;
+  recurrenceDetached?: boolean;
   subtasks?: { id: string; title: string; completed: boolean }[];
 }
 
@@ -63,6 +69,7 @@ export interface CreateTaskPayload {
   source?: ServerTaskSource;
   externalId?: string;
   link?: string;
+  inBacklog?: boolean;
   subtasks?: { id: string; title: string; completed: boolean }[];
 }
 
@@ -77,6 +84,7 @@ export interface UpdateTaskPayload {
   source?: ServerTaskSource;
   externalId?: string;
   link?: string;
+  inBacklog?: boolean;
   subtasks?: { id: string; title: string; completed: boolean }[];
 }
 
@@ -125,6 +133,11 @@ export function getAllTasks(): Promise<ServerTask[]> {
   return apiClient.get<ServerTask[]>(`/planner/tasks`);
 }
 
+/** Tasks with no day, newest first. Every task also appears in getAllTasks. */
+export function getBacklog(): Promise<ServerTask[]> {
+  return apiClient.get<ServerTask[]>(`/planner/backlog`);
+}
+
 export function getTasksByChannel(channel: string): Promise<ServerTask[]> {
   return apiClient.get<ServerTask[]>(`/planner/tasks/${encodeURIComponent(channel)}`);
 }
@@ -152,6 +165,17 @@ export function createChannelRequest(payload: CreateChannelPayload): Promise<Ser
 }
 
 // ─── Daily planner ──────────────────────────────────────────────────────
+
+export interface RolloverResult {
+  skipped: boolean;
+  rolledCount: number;
+  backlogCount: number;
+}
+
+/** Carries unfinished tasks forward. The server does it once per user per day, so repeat calls are cheap. */
+export function runRollover(): Promise<RolloverResult> {
+  return apiClient.post<RolloverResult>(`/planner/rollover`);
+}
 
 export function getTodaysPlan(): Promise<ServerDailyPlanner> {
   return apiClient.get<ServerDailyPlanner>(`/planner/daily-planner/today`);

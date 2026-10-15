@@ -7,6 +7,8 @@ declare global {
             userId?: string;
             userPlan?: 'free' | 'pro';
             isTrialActive?: boolean;
+            userTimezone?: string;
+            userWeekStartsOn?: 0 | 1;
             user?: {
                 _id: string;
                 name: string;

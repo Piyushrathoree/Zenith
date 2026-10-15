@@ -1,0 +1,15 @@
+{
+    "id": "18f0a1b2c3d4e5f7",
+    "payload": {
+        "mimeType": "multipart/related",
+        "parts": [
+            {
+                "mimeType": "multipart/alternative",
+                "parts": [
+                    { "mimeType": "text/html", "filename": "", "body": { "data": "PGh0bWw-PGhlYWQ-PHN0eWxlPnB7Y29sb3I6cmVkfTwvc3R5bGU-PC9oZWFkPjxib2R5PjxwPkhlbGxvICZhbXA7IHdlbGNvbWU8L3A-PGJyPjx1bD48bGk-T25lPC9saT48bGk-VHdvPC9saT48L3VsPjxzY3JpcHQ-YWxlcnQoMSk8L3NjcmlwdD4mIzE2OTsgMjAyNjwvYm9keT48L2h0bWw-" } }
+                ]
+            },
+            { "mimeType": "image/png", "filename": "logo.png", "body": { "attachmentId": "IMG1" } }
+        ]
+    }
+}

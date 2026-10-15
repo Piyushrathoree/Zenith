@@ -93,3 +93,63 @@ export const resetPasswordMail = `<!DOCTYPE html>
   </div>
 </body>
 </html>`;
+
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+/**
+ * Weekly digest: which tasks moved to the backlog, plus a link to weekly planning.
+ * Task titles are user text, so they are escaped before going into the HTML.
+ */
+export function buildWeeklyBacklogMail(
+    data: { movedTitles: string[]; movedCount: number; completedLastWeek: number; backlogTotal: number },
+    frontendUrl: string
+): string {
+    const items = data.movedTitles.map((title) => `<li>${escapeHtml(title)}</li>`).join('');
+    const more = data.movedCount > data.movedTitles.length
+        ? `<p>and ${data.movedCount - data.movedTitles.length} more.</p>`
+        : '';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your week, wrapped up</title>
+  <style>
+    body { margin:0; padding:0; background-color:#030712; color:#F9FAFB; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; }
+    .container { width:100%; max-width:600px; margin:0 auto; padding:40px 20px; }
+    .card { background-color:#111827; border-radius:12px; padding:32px; border:1px solid #374151; }
+    h1 { font-size:24px; font-weight:700; margin-top:0; color:#F9FAFB; }
+    p, li { font-size:16px; line-height:1.5; color:#D1D5DB; }
+    ul { padding-left:20px; }
+    .button { display:inline-block; background-color:#F9FAFB; color:#111827; padding:14px 28px; font-size:16px; font-weight:600; text-decoration:none; border-radius:8px; margin:24px 0; }
+    .footer { text-align:center; padding-top:24px; font-size:14px; color:#6B7280; }
+    .footer a { color:#6B7280; text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Your week, wrapped up</h1>
+      <p>You finished <strong>${data.completedLastWeek}</strong> tasks last week.</p>
+      <p>These were still open, so they moved to your backlog:</p>
+      <ul>${items}</ul>
+      ${more}
+      <p>Your backlog now has <strong>${data.backlogTotal}</strong> tasks.</p>
+      <a href="${frontendUrl}/dashboard?ritual=weekly-planning" class="button">Plan my week</a>
+      <p>&mdash; The Zenith Team</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2026 Zenith. All rights reserved.</p>
+      <p><a href="${frontendUrl}/settings#preferences">Turn off weekly emails</a></p>
+    </div>
+  </div>
+</body>
+</html>`;
+}

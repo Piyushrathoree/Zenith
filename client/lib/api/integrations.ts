@@ -43,6 +43,21 @@ export interface UniversalTask {
   icon?: string;
   workspace?: string;
   lastEdited?: string;
+  dueDate?: string;
+  state?: "open" | "closed" | "done" | "archived";
+  updatedAt?: string;
+  githubRelation?: ("assigned" | "created" | "review_requested")[];
+}
+
+/** Why a connection is unhealthy, so the UI can show the right help. */
+export type IntegrationErrorCode = "needs_reconnect" | "rate_limited" | "org_access" | "provider_down";
+
+export interface IntegrationSettings {
+  gmailPreset: "inbox" | "starred" | "unread" | "important" | "label";
+  gmailLabelId?: string;
+  notionMode: "pages" | "databases";
+  notionDatabaseIds: string[];
+  githubIncludeReviews: boolean;
 }
 
 export interface ProviderInfo {
@@ -58,16 +73,34 @@ export interface ConnectedIntegration {
   expiresAt?: string;
   createdAt: string;
   updatedAt: string;
+  lastSyncedAt?: string | null;
+  lastError?: IntegrationErrorCode | null;
+  lastErrorAt?: string | null;
+  settings?: IntegrationSettings;
 }
 
 export interface IntegrationFetchError {
   provider: IntegrationProvider;
   error: string;
+  code?: IntegrationErrorCode;
 }
 
 export interface IntegrationItemsResponse {
   items: UniversalTask[];
   errors: IntegrationFetchError[];
+  nextCursors?: Partial<Record<IntegrationProvider, string>>;
+}
+
+export interface IntegrationItemDetail {
+  externalId: string;
+  body: string;
+  truncated: boolean;
+  comments: { author: string; body: string; createdAt: string }[];
+}
+
+export interface IntegrationOptions {
+  labels?: { id: string; name: string }[];
+  databases?: { id: string; title: string }[];
 }
 
 export function listProviders(): Promise<ProviderInfo[]> {
@@ -78,9 +111,40 @@ export function listConnectedIntegrations(): Promise<ConnectedIntegration[]> {
   return apiClient.get<ConnectedIntegration[]>(`/integrations`);
 }
 
-export function getIntegrationItems(refresh?: boolean): Promise<IntegrationItemsResponse> {
-  const query = refresh ? `?refresh=true` : ``;
-  return apiClient.get<IntegrationItemsResponse>(`/integrations/items${query}`);
+/** All providers by default; pass `provider` (and optionally `cursor`) for one provider or the next page. */
+export function getIntegrationItems(
+  refresh?: boolean,
+  options: { provider?: IntegrationProvider; cursor?: string } = {}
+): Promise<IntegrationItemsResponse> {
+  const params = new URLSearchParams();
+  if (refresh) params.set("refresh", "true");
+  if (options.provider) params.set("provider", options.provider);
+  if (options.cursor) params.set("cursor", options.cursor);
+  const query = params.toString();
+  return apiClient.get<IntegrationItemsResponse>(`/integrations/items${query ? `?${query}` : ""}`);
+}
+
+/** Full body (and GitHub comments) for one item. GitHub needs the repository and number too. */
+export function getItemDetail(
+  provider: IntegrationProvider,
+  externalId: string,
+  github?: { repo: string; number: number }
+): Promise<IntegrationItemDetail> {
+  const query = github ? `?repo=${encodeURIComponent(github.repo)}&number=${github.number}` : "";
+  return apiClient.get<IntegrationItemDetail>(
+    `/integrations/items/${encodeURIComponent(provider)}/${encodeURIComponent(externalId)}${query}`
+  );
+}
+
+export function updateIntegrationSettings(
+  provider: IntegrationProvider,
+  settings: Partial<IntegrationSettings>
+): Promise<ConnectedIntegration> {
+  return apiClient.put<ConnectedIntegration>(`/integrations/${encodeURIComponent(provider)}/settings`, settings);
+}
+
+export function getIntegrationOptions(provider: IntegrationProvider): Promise<IntegrationOptions> {
+  return apiClient.get<IntegrationOptions>(`/integrations/${encodeURIComponent(provider)}/options`);
 }
 
 export function getConnectUrl(provider: IntegrationProvider): Promise<{ url: string }> {
@@ -104,4 +168,9 @@ export function disconnectIntegration(provider: IntegrationProvider): Promise<{ 
 export async function startProviderConnect(provider: IntegrationProvider): Promise<void> {
   const { url } = await getConnectUrl(provider);
   window.location.href = url;
+}
+
+/** Hide an item from the panel for good, or snooze it until `until` (ISO time). */
+export function hideIntegrationItem(provider: IntegrationProvider, externalId: string, until?: string): Promise<unknown> {
+  return apiClient.post(`/integrations/hidden`, { provider, externalId, ...(until ? { until } : {}) });
 }

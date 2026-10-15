@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import { getRedisOptions } from '../../config/redis.ts';
-import { sendVerificationCode, sendWelcomeMail, sendForgotPasswordMail } from './mail.ts';
+import { sendVerificationCode, sendWelcomeMail, sendForgotPasswordMail, sendWeeklyBacklogMail } from './mail.ts';
 import type { EmailJobData } from './mail.ts';
 
 /**
@@ -27,6 +27,9 @@ export const startEmailWorker = (): void => {
                     break;
                 case 'send-forgot-password-email':
                     await sendForgotPasswordMail(job.data);
+                    break;
+                case 'send-weekly-backlog-email':
+                    await sendWeeklyBacklogMail(job.data);
                     break;
                 default:
                     console.warn(`[EmailWorker] Unknown job name: ${job.name}`);

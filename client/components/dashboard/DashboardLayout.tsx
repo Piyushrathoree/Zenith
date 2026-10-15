@@ -5,8 +5,11 @@ import { KanbanBoard } from "@/components/dashboard/kanban/KanbanBoard";
 import { CreateTaskModal } from "@/components/dashboard/modals/CreateTaskModal";
 import { TaskDetailModal } from "@/components/dashboard/modals/TaskDetailModal";
 import { IntegrationDetailModal } from "@/components/dashboard/modals/IntegrationDetailModal";
-import { DailyPlannerPanel } from "@/components/dashboard/panels/DailyPlannerPanel";
+import { HighlightsPanel } from "@/components/dashboard/panels/HighlightsPanel";
+import { DailyPlanningFlow } from "@/components/dashboard/rituals/DailyPlanningFlow";
+import { DailyShutdownFlow } from "@/components/dashboard/rituals/DailyShutdownFlow";
 import { WeeklyRitualsPanel } from "@/components/dashboard/panels/WeeklyRitualsPanel";
+import { BacklogPanel } from "@/components/dashboard/panels/BacklogPanel";
 import { FocusMode } from "@/components/dashboard/FocusMode";
 import { useApp } from "@/context/AppContext";
 import {
@@ -20,11 +23,15 @@ import {
   useSensors,
   DragOverlay,
   closestCorners,
+  pointerWithin,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Task } from "@/types";
+import { formatTime12h } from "@/lib/formatDate";
+import { itemFromDragData } from "@/lib/integrationTasks";
 
 /** Friendly copy for the `integration_error=<code>` codes the OAuth callback can redirect with. */
 const INTEGRATION_ERROR_MESSAGES: Record<string, string> = {
@@ -89,15 +96,47 @@ function IntegrationOAuthReturnHandler() {
   return null;
 }
 
+/** The weekly backlog email links to /dashboard?ritual=weekly-planning. Opens that ritual once. */
+function RitualLinkHandler() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setShowWeeklyRituals } = useApp();
+
+  useEffect(() => {
+    if (searchParams.get("ritual") !== "weekly-planning") return;
+    setShowWeeklyRituals(true, "planning");
+
+    const remainingParams = new URLSearchParams(searchParams.toString());
+    remainingParams.delete("ritual");
+    const query = remainingParams.toString();
+    router.replace(query ? `/dashboard?${query}` : "/dashboard");
+  }, [searchParams, router, setShowWeeklyRituals]);
+
+  return null;
+}
+
+// Small targets (15 minute slots) need the pointer position first. closestCorners picks the wrong one.
+const collisionDetection: CollisionDetection = (args) => {
+  const pointerHits = pointerWithin(args);
+  return pointerHits.length > 0 ? pointerHits : closestCorners(args);
+};
+
 export function DashboardLayout() {
   const {
     activeIntegration,
     moveTask,
-    addTask,
+    addIntegrationItem,
     showWeeklyRituals,
     setShowWeeklyRituals,
     weeklyRitualType,
     loadIntegrations,
+    showBacklog,
+    sendToBacklog,
+    scheduleFromBacklog,
+    updateTask,
+    showHighlights,
+    dailyRitual,
+    setDailyRitual,
   } = useApp();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeDragType, setActiveDragType] = useState<string | null>(null);
@@ -138,7 +177,7 @@ export function DashboardLayout() {
     setActiveDragType(data?.type || null);
     setActiveDragData(data);
 
-    if (data?.type === "task") {
+    if (data?.type === "task" || data?.type === "backlog-task") {
       setActiveTask(data.task);
     }
   }, []);
@@ -161,6 +200,50 @@ export function DashboardLayout() {
 
       if (!over) return;
 
+      // A board task dropped on the backlog panel moves into the backlog.
+      if (activeData?.type === "task" && overData?.type === "backlog") {
+        sendToBacklog(activeData.task.id);
+        return;
+      }
+
+      // A backlog task dropped on a day column, or on a task in that day, is scheduled for that day.
+      if (activeData?.type === "backlog-task") {
+        const toDate =
+          overData?.type === "column"
+            ? (overData.column.id as string)
+            : overData?.type === "task"
+              ? (overData.task.date as string)
+              : undefined;
+        // Weekly planning: dropped on a day of the week.
+        if (overData?.type === "week-day") {
+          scheduleFromBacklog(activeData.task.id, overData.date);
+          return;
+        }
+        // Day view: a backlog task dropped on a time slot gets that day and time.
+        if (overData?.type === "timeslot") {
+          scheduleFromBacklog(activeData.task.id, overData.date, overData.time);
+          return;
+        }
+        if (toDate) scheduleFromBacklog(activeData.task.id, toDate);
+        return;
+      }
+
+      // Weekly planning: a board task dropped on a day of the week moves there.
+      if (activeData?.type === "task" && overData?.type === "week-day") {
+        if (activeData.task.date !== overData.date) moveTask(activeData.task.id, overData.date);
+        return;
+      }
+      // Day view: a timed block dropped on a time slot takes that day and time.
+      if (activeData?.type === "task" && overData?.type === "timeslot") {
+        updateTask(activeData.task.id, { date: overData.date, time: overData.time });
+        return;
+      }
+      // Day view: dropped on the unscheduled list, it loses its time and stays on the day.
+      if (activeData?.type === "task" && overData?.type === "unscheduled") {
+        if (activeData.task.time) updateTask(activeData.task.id, { time: "" });
+        return;
+      }
+
       if (activeData?.type === "task") {
         const fromDate = activeData.task?.date as string | undefined;
         const toDate =
@@ -175,81 +258,22 @@ export function DashboardLayout() {
         return;
       }
 
-      // Handle GitHub issue drop
-      if (activeData?.type === "github-issue" && overData?.type === "column") {
-        const issue = activeData.issue;
-        addTask({
-          title: issue.title,
-          duration: "1:00",
-          tag: "work",
-          date: overData.column.id,
-          completed: false,
-          source: "github",
-          sourceData: issue,
-          // Prefer the server's real externalId; issue.id is only a display
-          // id / React key and may be a synthesised fallback (see
-          // integrationsMapping.ts), so it is used only when externalId is
-          // absent.
-          externalId: issue.externalId || String(issue.id),
-          link: issue.url,
-        });
-      }
-
-      // Handle GitHub PR drop
-      if (activeData?.type === "github-pr" && overData?.type === "column") {
-        const pr = activeData.pr;
-        addTask({
-          title: pr.title,
-          duration: "0:30",
-          tag: "work",
-          date: overData.column.id,
-          completed: false,
-          source: "github",
-          externalId: pr.externalId || String(pr.id),
-          link: pr.url,
-        });
-      }
-
-      // Handle Gmail drop
-      if (activeData?.type === "gmail" && overData?.type === "column") {
-        const message = activeData.message;
-        addTask({
-          title: `Reply: ${message.subject}`,
-          duration: "0:15",
-          tag: "work",
-          date: overData.column.id,
-          completed: false,
-          source: "gmail",
-          externalId: message.externalId || message.id,
-          // Prefer the server's direct link when present, and only fall
-          // back to rebuilding one from the thread id, which opens the
-          // original thread in Gmail's web interface, when it is absent.
-          link: message.link || `https://mail.google.com/mail/u/0/#all/${message.threadId}`,
-        });
-      }
-
-      // Handle Notion drop
-      if (activeData?.type === "notion" && overData?.type === "column") {
-        const page = activeData.page;
-        addTask({
-          title: page.title,
-          duration: "0:30",
-          tag: "work",
-          date: overData.column.id,
-          completed: false,
-          source: "notion",
-          externalId: page.externalId || page.id,
-          link: page.url,
-        });
+      // An integration card dropped on a day, the backlog, or a week day becomes a task there.
+      // addIntegrationItem refuses duplicates, so dragging the same item twice is harmless.
+      const integrationItem = itemFromDragData(activeData);
+      if (integrationItem) {
+        if (overData?.type === "column") void addIntegrationItem(integrationItem, overData.column.id as string);
+        else if (overData?.type === "week-day") void addIntegrationItem(integrationItem, overData.date as string);
+        else if (overData?.type === "backlog") void addIntegrationItem(integrationItem, "backlog");
       }
     },
-    [moveTask, addTask, clearDrag]
+    [moveTask, clearDrag, sendToBacklog, scheduleFromBacklog, updateTask, addIntegrationItem]
   );
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
@@ -257,6 +281,7 @@ export function DashboardLayout() {
     >
       <Suspense fallback={null}>
         <IntegrationOAuthReturnHandler />
+        <RitualLinkHandler />
       </Suspense>
       <div className="flex h-screen bg-background overflow-hidden font-alan">
         <LeftSidebar />
@@ -266,13 +291,16 @@ export function DashboardLayout() {
         </main>
 
         {activeIntegration && <IntegrationPanel />}
+        {showBacklog && <BacklogPanel />}
+        {showHighlights && <HighlightsPanel />}
         <RightSidebar />
 
         {/* Modals & Panels */}
         <CreateTaskModal />
         <TaskDetailModal />
         <IntegrationDetailModal />
-        <DailyPlannerPanel />
+        {dailyRitual === "planning" && <DailyPlanningFlow onClose={() => setDailyRitual(null)} />}
+        {dailyRitual === "shutdown" && <DailyShutdownFlow onClose={() => setDailyRitual(null)} />}
         <WeeklyRitualsPanel
           isOpen={showWeeklyRituals}
           onClose={() => setShowWeeklyRituals(false)}
@@ -283,13 +311,13 @@ export function DashboardLayout() {
 
       {/* Drag Overlay for integration cards */}
       <DragOverlay dropAnimation={{ duration: 180, easing: "ease-out" }}>
-        {activeDragType === "task" && activeTask && (
+        {(activeDragType === "task" || activeDragType === "backlog-task") && activeTask && (
           <div className="task-card task-card-dragging h-32 w-[304px]">
             <div className="flex h-full flex-col justify-between">
               <div className="flex items-center justify-between">
                 {activeTask.time ? (
                   <span className="text-xs font-medium text-muted-foreground">
-                    {activeTask.time}
+                    {formatTime12h(activeTask.time)}
                   </span>
                 ) : (
                   <span />

@@ -1,9 +1,18 @@
 import type {
+    FetchContext,
+    FetchResult,
     IntegrationAdapter,
+    IntegrationItemDetail,
     IntegrationProfile,
+    IntegrationSettings,
     UniversalTask,
 } from "./types.ts";
-import { IntegrationAuthError, toIsoDate } from "./types.ts";
+import {
+    mapWithConcurrency,
+    throwForResponse,
+    toIsoDate,
+    truncateBody,
+} from "./types.ts";
 
 const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1";
 
@@ -12,9 +21,34 @@ interface GmailHeader {
     value: string;
 }
 
+const PAGE_SIZE = 25;
+const METADATA_CONCURRENCY = 8;
+
 interface GmailListResponse {
     messages?: { id: string; threadId: string }[];
+    nextPageToken?: string;
 }
+
+export interface GmailPart {
+    mimeType?: string;
+    filename?: string;
+    body?: { data?: string; attachmentId?: string; size?: number };
+    parts?: GmailPart[];
+}
+
+interface GmailFullMessage {
+    id: string;
+    payload?: GmailPart;
+}
+
+interface GmailLabel {
+    id: string;
+    name: string;
+    type?: string;
+}
+
+// System labels worth offering in the label picker, alongside every user label.
+const SYSTEM_LABELS_OFFERED = new Set(["INBOX", "STARRED", "IMPORTANT", "UNREAD"]);
 
 interface GmailMessageResponse {
     id: string;
@@ -97,7 +131,7 @@ function decodeRfc2047(raw: string): string {
 // right address instead of the whole header landing in fromEmail. The
 // address is the last angle bracketed group anywhere in the header, and
 // everything before the first angle bracket is the display name.
-function parseFromHeader(raw: string): { from: string; fromEmail: string } {
+export function parseFromHeader(raw: string): { from: string; fromEmail: string } {
     const decoded = decodeRfc2047(raw);
     const firstOpen = decoded.indexOf("<");
     const lastClose = decoded.lastIndexOf(">");
@@ -119,36 +153,116 @@ function parseFromHeader(raw: string): { from: string; fromEmail: string } {
     };
 }
 
+/** The list query for the user's preset: labelIds and/or q, as Gmail expects them. */
+export function buildListQuery(settings: IntegrationSettings): URLSearchParams {
+    const params = new URLSearchParams({ maxResults: String(PAGE_SIZE) });
+    switch (settings.gmailPreset) {
+        case "starred":
+            params.append("labelIds", "STARRED");
+            break;
+        case "unread":
+            params.set("q", "is:unread in:inbox");
+            break;
+        case "important":
+            params.append("labelIds", "IMPORTANT");
+            break;
+        case "label":
+            // A missing label id cannot be saved (see integration.settings.ts); INBOX is a
+            // safe fallback for an older document.
+            params.append("labelIds", settings.gmailLabelId || "INBOX");
+            break;
+        case "inbox":
+        default:
+            params.append("labelIds", "INBOX");
+            break;
+    }
+    return params;
+}
+
+function decodeBase64Url(data: string): string {
+    return Buffer.from(data, "base64url").toString("utf-8");
+}
+
+const HTML_ENTITIES: Record<string, string> = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    nbsp: " ",
+};
+
+/** Very small HTML to text: drops style/script/head, keeps line breaks, decodes common entities. */
+export function htmlToText(html: string): string {
+    return html
+        .replace(/<(style|script|head)[^>]*>[\s\S]*?<\/\1>/gi, "")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(p|div|tr|li|h[1-6]|blockquote)>/gi, "\n")
+        .replace(/<li[^>]*>/gi, "- ")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
+            const lower = entity.toLowerCase();
+            if (lower.startsWith("#x")) return String.fromCodePoint(parseInt(lower.slice(2), 16));
+            if (lower.startsWith("#")) return String.fromCodePoint(parseInt(lower.slice(1), 10));
+            return HTML_ENTITIES[lower] ?? match;
+        })
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+}
+
+// Depth first search for the first inline part of a given type. Attachments (a filename or an
+// attachmentId with no inline data) are skipped.
+function findPart(part: GmailPart | undefined, mimeType: string): string | null {
+    if (!part) return null;
+    if (part.mimeType === mimeType && part.body?.data && !part.filename) {
+        return decodeBase64Url(part.body.data);
+    }
+    for (const child of part.parts ?? []) {
+        const found = findPart(child, mimeType);
+        if (found !== null) return found;
+    }
+    return null;
+}
+
+/**
+ * The readable body of a Gmail payload tree. Searches the whole tree for text/plain first,
+ * because multipart/alternative carries both and plain is the one worth showing, and only then
+ * falls back to text/html stripped to text.
+ */
+export function extractPlainText(payload: GmailPart | undefined): string {
+    const plain = findPart(payload, "text/plain");
+    if (plain !== null) return plain.trim();
+    const html = findPart(payload, "text/html");
+    return html !== null ? htmlToText(html) : "";
+}
+
 export class GmailAdapter implements IntegrationAdapter {
-    async fetchItems(accessToken: string): Promise<UniversalTask[]> {
+    async fetchItems(accessToken: string, context: FetchContext): Promise<FetchResult> {
+        const params = buildListQuery(context.settings);
+        if (context.cursor) params.set("pageToken", context.cursor);
+
         const listRes = await fetch(
-            `${GMAIL_API_BASE}/users/me/messages?maxResults=20&q=in:inbox`,
+            `${GMAIL_API_BASE}/users/me/messages?${params.toString()}`,
             { headers: buildHeaders(accessToken) }
         );
 
         if (!listRes.ok) {
-            if (listRes.status === 401 || listRes.status === 403) {
-                throw new IntegrationAuthError(
-                    "gmail",
-                    listRes.status,
-                    listRes.statusText
-                );
-            }
-            throw new Error(
-                `Gmail API error fetching message list: ${listRes.status} ${listRes.statusText}`
-            );
+            await throwForResponse("gmail", listRes, "fetching message list");
         }
 
-        const { messages } = (await listRes.json()) as GmailListResponse;
+        const { messages, nextPageToken } = (await listRes.json()) as GmailListResponse;
 
         if (!messages || messages.length === 0) {
-            return [];
+            return { items: [], nextCursor: nextPageToken || undefined };
         }
 
-        const fullMessages = await Promise.all(
-            messages.map(async ({ id }): Promise<GmailMessageResponse | null> => {
+        const fullMessages = await mapWithConcurrency(
+            messages,
+            METADATA_CONCURRENCY,
+            async ({ id }): Promise<GmailMessageResponse | null> => {
                 const res = await fetch(
-                    `${GMAIL_API_BASE}/users/me/messages/${id}` +
+                    `${GMAIL_API_BASE}/users/me/messages/${encodeURIComponent(id)}` +
                         "?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
                     { headers: buildHeaders(accessToken) }
                 );
@@ -158,15 +272,16 @@ export class GmailAdapter implements IntegrationAdapter {
                 }
 
                 return (await res.json()) as GmailMessageResponse;
-            })
+            }
         );
 
-        return fullMessages
+        const items = fullMessages
             .filter((message): message is GmailMessageResponse => message !== null)
             .map((message): UniversalTask => {
                 const unread = Boolean(message.labelIds?.includes("UNREAD"));
                 const rawFrom = getHeader(message.payload?.headers, "From", "");
                 const parsedFrom = rawFrom ? parseFromHeader(rawFrom) : undefined;
+                const createdAt = resolveCreatedAt(message);
 
                 return {
                     externalId: message.id,
@@ -177,9 +292,12 @@ export class GmailAdapter implements IntegrationAdapter {
                         "Subject",
                         "(no subject)"
                     ),
-                    link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+                    // #all works for any preset; #inbox only finds inbox messages.
+                    link: `https://mail.google.com/mail/u/0/#all/${message.id}`,
                     status: unread ? "unread" : "read",
-                    createdAt: resolveCreatedAt(message),
+                    state: "open",
+                    createdAt,
+                    updatedAt: createdAt,
                     threadId: message.threadId,
                     from: parsedFrom?.from,
                     fromEmail: parsedFrom?.fromEmail,
@@ -187,6 +305,39 @@ export class GmailAdapter implements IntegrationAdapter {
                     unread,
                 };
             });
+
+        return { items, nextCursor: nextPageToken || undefined };
+    }
+
+    async fetchDetail(accessToken: string, externalId: string): Promise<IntegrationItemDetail> {
+        const res = await fetch(
+            `${GMAIL_API_BASE}/users/me/messages/${encodeURIComponent(externalId)}?format=full`,
+            { headers: buildHeaders(accessToken) }
+        );
+        if (!res.ok) {
+            await throwForResponse("gmail", res, "fetching message");
+        }
+        const message = (await res.json()) as GmailFullMessage;
+        return {
+            externalId,
+            ...truncateBody(extractPlainText(message.payload)),
+            comments: [],
+        };
+    }
+
+    async fetchOptions(accessToken: string): Promise<Record<string, unknown>> {
+        const res = await fetch(`${GMAIL_API_BASE}/users/me/labels`, {
+            headers: buildHeaders(accessToken),
+        });
+        if (!res.ok) {
+            await throwForResponse("gmail", res, "fetching labels");
+        }
+        const data = (await res.json()) as { labels?: GmailLabel[] };
+        const labels = (data.labels ?? [])
+            .filter((label) => label.type === "user" || SYSTEM_LABELS_OFFERED.has(label.id))
+            .map((label) => ({ id: label.id, name: label.name }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        return { labels };
     }
 
     async fetchProfile(accessToken: string): Promise<IntegrationProfile> {
@@ -195,16 +346,7 @@ export class GmailAdapter implements IntegrationAdapter {
         });
 
         if (!res.ok) {
-            if (res.status === 401 || res.status === 403) {
-                throw new IntegrationAuthError(
-                    "gmail",
-                    res.status,
-                    res.statusText
-                );
-            }
-            throw new Error(
-                `Gmail API error fetching profile: ${res.status} ${res.statusText}`
-            );
+            await throwForResponse("gmail", res, "fetching profile");
         }
 
         const data = (await res.json()) as GmailProfileResponse;

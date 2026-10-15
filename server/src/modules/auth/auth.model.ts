@@ -20,6 +20,7 @@ export interface IUser extends Document {
     resetPasswordToken?: string;
     resetPasswordTokenExpires?: Date;
     lastLogin?: Date;
+    lastRolloverDate?: string; // "yyyy-MM-dd" in the user's timezone, the last day rollover ran
 
     // OAuth
     authProviders: string[]; // e.g. ['local'], ['google'], or ['local', 'github'] once linked
@@ -29,6 +30,12 @@ export interface IUser extends Document {
     // Subscription
     plan: 'free' | 'pro';
     trialEndsAt?: Date; // set to now + 7 days on registration (local and OAuth)
+
+    // Preferences
+    timezone: string;                       // IANA name, e.g. "Asia/Kolkata"
+    weekStartsOn: 0 | 1;                    // 0 = Sunday, 1 = Monday
+    emailPrefs: { weeklyBacklogDigest: boolean };
+    calendarReminderMinutes: number; // minutes before a synced task's event, for the phone reminder
 
     // Methods
     generateAuthToken: () => string;
@@ -49,6 +56,7 @@ const userSchema = new Schema<IUser>({
     resetPasswordToken: { type: String },
     resetPasswordTokenExpires: { type: Date },
     lastLogin: { type: Date, default: Date.now },
+    lastRolloverDate: { type: String },
 
     // ─── OAuth ────────────────────────────────────────────────────────────────
     authProviders: { type: [String], default: ['local'] },
@@ -68,6 +76,15 @@ const userSchema = new Schema<IUser>({
         type: Date,
         // Set by RegisterUser controller (and the OAuth strategies): Date.now() + 7 days
     },
+
+    // ─── Preferences ──────────────────────────────────────────────────────────
+    // Existing users get these defaults when their document is loaded, no migration needed.
+    timezone: { type: String, default: 'UTC' },
+    weekStartsOn: { type: Number, enum: [0, 1], default: 1 },
+    emailPrefs: {
+        weeklyBacklogDigest: { type: Boolean, default: true },
+    },
+    calendarReminderMinutes: { type: Number, default: 10 },
 });
 
 // ─── Pre-save hook: hash password if it changed ────────────────────────────────

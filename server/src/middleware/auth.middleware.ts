@@ -37,7 +37,7 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction): 
         }
 
         // Look up user to get fresh plan data (not stale from JWT)
-        const user = await User.findById(decoded.id).select('plan trialEndsAt name email isVerified');
+        const user = await User.findById(decoded.id).select('plan trialEndsAt name email isVerified timezone weekStartsOn');
         if (!user) {
             res.status(401).json(new ApiError(401, 'Unauthorized — user not found'));
             return;
@@ -46,6 +46,8 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction): 
         req.userId = decoded.id;
         req.userPlan = user.plan as 'free' | 'pro';
         req.isTrialActive = user.trialEndsAt ? Date.now() < user.trialEndsAt.getTime() : false;
+        req.userTimezone = user.timezone || 'UTC';
+        req.userWeekStartsOn = user.weekStartsOn === 0 ? 0 : 1;
         req.user = {
             _id: decoded.id,
             name: user.name,

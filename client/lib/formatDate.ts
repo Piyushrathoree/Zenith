@@ -43,6 +43,28 @@ export function safeFormatDistanceToNow(
     }
 }
 
+/** 90 -> "1h 30m", 120 -> "2h", 45 -> "45m". */
+export function formatMinutes(totalMinutes: number): string {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${minutes}m`;
+}
+
+/**
+ * "14:00" -> "2:00 pm". Returns the input unchanged when it is not "HH:mm"
+ * (for example old "7:00 am" values that have not been migrated yet).
+ */
+export function formatTime12h(hhmm: string): string {
+    const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
+    if (!match) return hhmm;
+    const hours = Number(match[1]);
+    const suffix = hours >= 12 ? "pm" : "am";
+    const display = hours % 12 === 0 ? 12 : hours % 12;
+    return `${display}:${match[2]} ${suffix}`;
+}
+
 /**
  * Drop in replacement for date-fns `format` that never throws. Returns
  * `fallback` when `value` is missing, empty, or does not parse to a valid

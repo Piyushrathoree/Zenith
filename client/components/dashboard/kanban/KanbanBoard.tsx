@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { CalendarView } from "./CalendarView";
 import { KanbanHeader } from "./KanbanHeader";
 import { KanbanColumn } from "./KanbanColumn";
+import { DayView } from "@/components/dashboard/dayview/DayView";
+import { RitualPrompt } from "@/components/dashboard/rituals/RitualPrompt";
 
 export function KanbanBoard() {
   const {
@@ -46,6 +48,7 @@ export function KanbanBoard() {
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
       <KanbanHeader />
+      {viewMode === "board" && <RitualPrompt />}
 
       <AnimatePresence mode="wait">
         {viewMode === "board" ? (
@@ -69,6 +72,17 @@ export function KanbanBoard() {
                 />
               ))}
             </div>
+          </motion.div>
+        ) : viewMode === "day" ? (
+          <motion.div
+            key="day"
+            className="flex-1 overflow-hidden"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <DayView />
           </motion.div>
         ) : (
           <motion.div

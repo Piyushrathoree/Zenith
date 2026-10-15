@@ -1,89 +1,41 @@
 import type { Request, Response } from 'express';
+import type { HydratedDocument } from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { redisClient } from '../../middleware/rateLimit.middleware.ts';
 import { OAUTH_CONFIG, isProviderConfigured, PROVIDER_LABELS } from './oauth.config.ts';
 import { encryptData, decryptData } from '../../utils/crypto.ts';
 import { env } from '../../config/env.ts';
 import { Integration } from './integration.model.ts';
+import { activeHiddenKeys } from './hiddenItem.model.ts';
 import { ApiResponse } from '../../utils/ApiResponse.ts';
 import { ApiError } from '../../utils/ApiError.ts';
+import type { IIntegration } from './integration.model.ts';
 import { getAdapter } from './adapters/registry.ts';
 import { resolveAccessToken, markIntegrationRevoked } from './token.service.ts';
-import { IntegrationAuthError } from './adapters/types.ts';
-import type { IntegrationProvider, IntegrationProfile, UniversalTask } from './adapters/types.ts';
-
-const cacheRedis = redisClient;
-
-const ITEMS_CACHE_TTL_SECONDS = 90;
-
-function itemsCacheGenerationKey(userId: string): string {
-    return `integrations:items:gen:${userId}`;
-}
-
-function itemsCacheKey(userId: string, generation: number): string {
-    return `integrations:items:${userId}:${generation}`;
-}
-
-interface ItemFetchError {
-    provider: IntegrationProvider;
-    error: string;
-}
-
-interface ItemsPayload {
-    items: UniversalTask[];
-    errors: ItemFetchError[];
-}
-
-async function currentCacheGeneration(userId: string): Promise<number> {
-    try {
-        const raw = await cacheRedis.get(itemsCacheGenerationKey(userId));
-        return raw ? parseInt(raw, 10) || 0 : 0;
-    } catch (error) {
-        console.warn('[Integrations] Cache generation read failed, defaulting to 0:', error);
-        return 0;
-    }
-}
-
-async function readItemsCache(userId: string, generation: number): Promise<ItemsPayload | null> {
-    try {
-        const raw = await cacheRedis.get(itemsCacheKey(userId, generation));
-        return raw ? (JSON.parse(raw) as ItemsPayload) : null;
-    } catch (error) {
-        console.warn('[Integrations] Cache read failed, falling back to a live fetch:', error);
-        return null;
-    }
-}
-
-async function writeItemsCache(
-    userId: string,
-    generation: number,
-    payload: ItemsPayload
-): Promise<void> {
-    // A payload with partial failures is never cached: pinning a transient provider error for
-    // the full TTL would hide a reconnect prompt behind a stale, success looking cache entry.
-    if (payload.errors.length > 0) return;
-
-    try {
-        await cacheRedis.set(
-            itemsCacheKey(userId, generation),
-            JSON.stringify(payload),
-            'EX',
-            ITEMS_CACHE_TTL_SECONDS
-        );
-    } catch (error) {
-        console.warn('[Integrations] Cache write failed:', error);
-    }
-}
-
-async function invalidateItemsCache(userId: string): Promise<void> {
-    try {
-        // INCR rather than DEL of the current key: see the comment above itemsCacheGenerationKey.
-        // This orphans any write from a request already in flight instead of racing it.
-        await cacheRedis.incr(itemsCacheGenerationKey(userId));
-    } catch (error) {
-        console.warn('[Integrations] Cache invalidation failed:', error);
-    }
-}
+import { IntegrationAuthError, InvalidCursorError, errorCodeFor } from './adapters/types.ts';
+import type {
+    DetailParams,
+    IntegrationErrorCode,
+    IntegrationProvider,
+    IntegrationProfile,
+    UniversalTask,
+} from './adapters/types.ts';
+import { isValidRepoSlug } from './adapters/github.adapter.ts';
+import {
+    applySettingsUpdate,
+    resolveSettings,
+    toIntegrationEntry,
+    type IntegrationEntrySource,
+} from './integration.settings.ts';
+import {
+    createEtagStore,
+    currentGeneration,
+    invalidateProviderItems,
+    readDetail,
+    readProviderItems,
+    writeDetail,
+    writeProviderItems,
+} from './integration.cache.ts';
 
 // ─── Provider validation ─────────────────────────────────────────────────────────
 const VALID_PROVIDERS: readonly IntegrationProvider[] = ['github', 'gmail', 'notion'];
@@ -197,15 +149,6 @@ interface TokenExchangeResponse {
     access_token: string;
     refresh_token?: string;
     expires_in?: number;
-}
-
-interface LeanIntegration {
-    provider: IntegrationProvider;
-    status: 'active' | 'expired' | 'revoked';
-    profile: { username: string; avatar: string };
-    expiresAt?: Date;
-    createdAt: Date;
-    updatedAt: Date;
 }
 
 /**
@@ -397,21 +340,27 @@ export const callbackProvider = async (req: Request, res: Response): Promise<voi
             console.warn(`[OAuth] ${providerId} profile lookup failed, using fallback:`, profileError);
         }
 
+        // A reconnect clears the previous failure: the UI must stop asking to reconnect at once,
+        // not after the next successful sync.
         await Integration.findOneAndUpdate(
             { userId, provider: providerId },
             {
-                userId,
-                provider: providerId,
-                accessToken: encryptedAccess,
-                refreshToken: encryptedRefresh,
-                profile,
-                expiresAt: tokenData.expires_in
-                    ? new Date(Date.now() + tokenData.expires_in * 1000)
-                    : undefined,
-                status: 'active',
+                $set: {
+                    userId,
+                    provider: providerId,
+                    accessToken: encryptedAccess,
+                    refreshToken: encryptedRefresh,
+                    profile,
+                    expiresAt: tokenData.expires_in
+                        ? new Date(Date.now() + tokenData.expires_in * 1000)
+                        : undefined,
+                    status: 'active',
+                },
+                $unset: { lastError: '', lastErrorAt: '' },
             },
             { upsert: true, new: true }
         );
+        await invalidateProviderItems(userId, providerId);
 
         res.redirect(`${env.FRONTEND_URL}/dashboard?integration_success=${providerId}`);
     } catch (error) {
@@ -454,16 +403,9 @@ export const listIntegrations = async (req: Request, res: Response): Promise<voi
 
     const integrations = await Integration.find({ userId })
         .select('-accessToken -refreshToken')
-        .lean<LeanIntegration[]>();
+        .lean<IntegrationEntrySource[]>();
 
-    const connected = integrations.map((integration) => ({
-        provider: integration.provider,
-        status: integration.status,
-        profile: integration.profile,
-        expiresAt: integration.expiresAt ? integration.expiresAt.toISOString() : undefined,
-        createdAt: integration.createdAt.toISOString(),
-        updatedAt: integration.updatedAt.toISOString(),
-    }));
+    const connected = integrations.map(toIntegrationEntry);
 
     res.status(200).json(new ApiResponse(200, connected, 'Integrations fetched successfully'));
 };
@@ -495,19 +437,133 @@ export const disconnectProvider = async (req: Request, res: Response): Promise<v
         return;
     }
 
-    await invalidateItemsCache(userId);
+    await invalidateProviderItems(userId, providerStr);
 
     res.status(200).json(new ApiResponse(200, { provider: providerStr }, 'Integration disconnected successfully'));
 };
 
+// ─── Connection health ───────────────────────────────────────────────────────────
+// Written with updateOne, never save(): resolveAccessToken may already have saved the same
+// document, and a health write must never fail the request it describes.
+
+async function recordSyncSuccess(integration: HydratedDocument<IIntegration>): Promise<void> {
+    try {
+        await Integration.updateOne(
+            { _id: integration._id },
+            { $set: { lastSyncedAt: new Date() }, $unset: { lastError: '', lastErrorAt: '' } }
+        );
+    } catch (error) {
+        console.warn(`[Integrations] Failed to record a sync for ${integration.provider}:`, error);
+    }
+}
+
+/** Records a failure and returns its code. An auth failure also marks the integration revoked. */
+async function recordSyncFailure(
+    integration: HydratedDocument<IIntegration>,
+    error: unknown
+): Promise<IntegrationErrorCode> {
+    const code = errorCodeFor(error);
+    try {
+        if (error instanceof IntegrationAuthError) {
+            // The provider told us this token no longer works, so "active" is no longer truthful.
+            // markIntegrationRevoked also records lastError='needs_reconnect'.
+            await markIntegrationRevoked(integration);
+        } else {
+            await Integration.updateOne(
+                { _id: integration._id },
+                { $set: { lastError: code, lastErrorAt: new Date() } }
+            );
+        }
+    } catch (saveError) {
+        console.warn(`[Integrations] Failed to record an error for ${integration.provider}:`, saveError);
+    }
+    return code;
+}
+
+function firstQueryValue(value: unknown): string | undefined {
+    const first = Array.isArray(value) ? value[0] : value;
+    return typeof first === 'string' && first.length > 0 ? first : undefined;
+}
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+    return Array.isArray(value) ? value[0] : value;
+}
+
+// ─── Items ───────────────────────────────────────────────────────────────────────
+
+interface ItemFetchError {
+    provider: IntegrationProvider;
+    error: string;
+    code: IntegrationErrorCode;
+}
+
+interface ItemsPayload {
+    items: UniversalTask[];
+    errors: ItemFetchError[];
+    nextCursors: Partial<Record<IntegrationProvider, string>>;
+}
+
+interface ProviderFetchOutcome {
+    provider: IntegrationProvider;
+    items: UniversalTask[];
+    nextCursor?: string;
+    error?: ItemFetchError;
+}
+
 /**
- * getItems: the caller's aggregated feed across every connected, active provider.
+ * One provider's items. A first page comes from the per provider cache unless `forceRefresh`;
+ * a cursor page is always live and never cached. Errors are never cached. InvalidCursorError is
+ * rethrown so the handler can answer 400.
+ */
+async function fetchProviderItems(
+    userId: string,
+    integration: HydratedDocument<IIntegration>,
+    options: { cursor?: string; forceRefresh: boolean }
+): Promise<ProviderFetchOutcome> {
+    const provider = integration.provider;
+    const cacheable = !options.cursor;
+
+    // Captured before the live fetch and reused for the write; see integration.cache.ts.
+    const generation = cacheable ? await currentGeneration(userId, provider) : 0;
+    if (cacheable && !options.forceRefresh) {
+        const cached = await readProviderItems(userId, provider, generation);
+        if (cached) return { provider, items: cached.items, nextCursor: cached.nextCursor };
+    }
+
+    try {
+        const adapter = getAdapter(provider);
+        if (!adapter) throw new Error(`No adapter registered for provider: ${provider}`);
+        const accessToken = await resolveAccessToken(integration);
+        const result = await adapter.fetchItems(accessToken, {
+            settings: resolveSettings(integration.toObject().settings),
+            cursor: options.cursor,
+            etagStore: provider === 'github' ? createEtagStore(userId, provider) : undefined,
+        });
+
+        await recordSyncSuccess(integration);
+        if (cacheable) {
+            await writeProviderItems(userId, provider, generation, {
+                items: result.items,
+                nextCursor: result.nextCursor,
+            });
+        }
+        return { provider, items: result.items, nextCursor: result.nextCursor };
+    } catch (error) {
+        if (error instanceof InvalidCursorError) throw error;
+        console.warn(`[Integrations] Failed to fetch items for ${provider}:`, error);
+        const code = await recordSyncFailure(integration, error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { provider, items: [], error: { provider, error: message, code } };
+    }
+}
+
+/**
+ * getItems: GET /items?provider=<p>&refresh=true&cursor=<c>
  *
- * Each provider is resolved and fetched independently inside its own try/catch so one revoked
- * or failing provider cannot break, or hide, another provider's items. The client uses the
- * `errors` array to show a targeted reconnect prompt instead of silently rendering an empty
- * feed. Results are cached per user in Redis for a short TTL; the cache fails open, so a Redis
- * outage degrades speed and never correctness.
+ * Without `provider`: every active provider, each fetched independently so one failing provider
+ * cannot hide another's items. With `provider`: that provider only, and `cursor` (only valid with
+ * `provider`) fetches its next page. `nextCursors` holds an opaque cursor for every provider that
+ * has more pages. Each provider is cached separately for 90s; the cache fails open.
  */
 export const getItems = async (req: Request, res: Response): Promise<void> => {
     const userId = req.userId;
@@ -516,72 +572,251 @@ export const getItems = async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
+    const providerParam = firstQueryValue(req.query.provider);
+    const cursor = firstQueryValue(req.query.cursor);
     const forceRefresh = req.query.refresh === 'true';
 
-    // Captured once, up front, and reused for both the read below and the write at the end of
-    // this request. See the comment above itemsCacheGenerationKey: if a disconnect bumps the
-    // generation while this request's live fetch is still in flight, this request's own write
-    // later on targets the generation it started with, not the new one, so it cannot resurrect
-    // a disconnected provider's items into the cache entry future requests actually read.
-    const generation = await currentCacheGeneration(userId);
+    if (providerParam && !isValidProvider(providerParam)) {
+        res.status(400).json(new ApiError(400, `Unknown provider: ${providerParam}`));
+        return;
+    }
+    if (cursor && !providerParam) {
+        res.status(400).json(new ApiError(400, 'cursor requires provider'));
+        return;
+    }
 
-    if (!forceRefresh) {
-        const cached = await readItemsCache(userId, generation);
-        if (cached) {
-            res.status(200).json(new ApiResponse(200, cached, 'Items fetched successfully'));
+    const payload: ItemsPayload = { items: [], errors: [], nextCursors: {} };
+    let targets: HydratedDocument<IIntegration>[];
+
+    if (providerParam) {
+        // Hydrated, not .lean(): resolveAccessToken may refresh and save the token.
+        const integration = await Integration.findOne({ userId, provider: providerParam });
+        if (!integration) {
+            res.status(200).json(new ApiResponse(200, payload, 'Items fetched successfully'));
             return;
         }
-    }
-
-    // Hydrated documents, not .lean(): resolveAccessToken may refresh an expired token and
-    // save it back onto the document, which needs a full Mongoose document instance.
-    const integrations = await Integration.find({ userId, status: 'active' });
-
-    const settled = await Promise.all(
-        integrations.map(async (integration) => {
-            try {
-                const accessToken = await resolveAccessToken(integration);
-                const adapter = getAdapter(integration.provider);
-                if (!adapter) {
-                    throw new Error(`No adapter registered for provider: ${integration.provider}`);
-                }
-                const items = await adapter.fetchItems(accessToken);
-                return { provider: integration.provider, items, error: null as string | null };
-            } catch (error) {
-                const message = error instanceof Error ? error.message : 'Unknown error';
-                console.warn(`[Integrations] Failed to fetch items for ${integration.provider}:`, error);
-
-                if (error instanceof IntegrationAuthError) {
-                    // The provider itself told us this token no longer works (401/403), so
-                    // "active" is no longer truthful, transition to "revoked" so listIntegrations
-                    // and the UI can prompt a reconnect. Best effort and isolated in its own
-                    // try/catch: a database failure while recording the revocation must not turn
-                    // this provider's fetch failure into a whole request failure.
-                    try {
-                        await markIntegrationRevoked(integration);
-                    } catch (saveError) {
-                        console.warn(
-                            `[Integrations] Failed to mark ${integration.provider} as revoked:`,
-                            saveError
-                        );
-                    }
-                }
-
-                return { provider: integration.provider, items: [] as UniversalTask[], error: message };
-            }
-        })
-    );
-
-    const payload: ItemsPayload = { items: [], errors: [] };
-    for (const entry of settled) {
-        if (entry.error) {
-            payload.errors.push({ provider: entry.provider, error: entry.error });
-        } else {
-            payload.items.push(...entry.items);
+        if (integration.status !== 'active') {
+            payload.errors.push({
+                provider: integration.provider,
+                error: `${PROVIDER_LABELS[integration.provider]} needs to be reconnected`,
+                code: 'needs_reconnect',
+            });
+            res.status(200).json(new ApiResponse(200, payload, 'Items fetched successfully'));
+            return;
         }
+        targets = [integration];
+    } else {
+        targets = await Integration.find({ userId, status: 'active' });
     }
 
-    await writeItemsCache(userId, generation, payload);
+    let outcomes: ProviderFetchOutcome[];
+    try {
+        outcomes = await Promise.all(
+            targets.map((integration) =>
+                fetchProviderItems(userId, integration, { cursor, forceRefresh })
+            )
+        );
+    } catch (error) {
+        if (error instanceof InvalidCursorError) {
+            res.status(400).json(new ApiError(400, 'Invalid cursor'));
+            return;
+        }
+        throw error;
+    }
+
+    for (const outcome of outcomes) {
+        if (outcome.error) {
+            payload.errors.push(outcome.error);
+            continue;
+        }
+        payload.items.push(...outcome.items);
+        if (outcome.nextCursor) payload.nextCursors[outcome.provider] = outcome.nextCursor;
+    }
+
+    // Hidden and snoozed items are filtered here, after the cache, so un-hiding shows them at once.
+    const hidden = await activeHiddenKeys(userId);
+    if (hidden.size > 0) {
+        payload.items = payload.items.filter((item) => !hidden.has(`${item.provider}:${item.externalId}`));
+    }
 
     res.status(200).json(new ApiResponse(200, payload, 'Items fetched successfully'));
+};
+
+// ─── Item detail ─────────────────────────────────────────────────────────────────
+
+const EXTERNAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * getItemDetail: GET /items/:provider/:externalId, the body of one item, loaded only when a card
+ * is opened. GitHub also needs `?repo=owner/name&number=123`. Cached 5 minutes per item.
+ */
+export const getItemDetail = async (req: Request, res: Response): Promise<void> => {
+    const userId = req.userId;
+    if (!userId) {
+        res.status(401).json(new ApiError(401, 'Unauthorized'));
+        return;
+    }
+
+    const providerStr = firstParam(req.params.provider);
+    const externalId = firstParam(req.params.externalId);
+    if (!providerStr || !isValidProvider(providerStr)) {
+        res.status(400).json(new ApiError(400, `Unknown provider: ${providerStr}`));
+        return;
+    }
+    if (!externalId || !EXTERNAL_ID_PATTERN.test(externalId)) {
+        res.status(400).json(new ApiError(400, 'Invalid item id'));
+        return;
+    }
+
+    const params: DetailParams = {};
+    let cacheId = externalId;
+    if (providerStr === 'github') {
+        const repo = firstQueryValue(req.query.repo);
+        const number = Number(firstQueryValue(req.query.number));
+        if (!repo || !isValidRepoSlug(repo) || !Number.isInteger(number) || number < 1) {
+            res.status(400).json(
+                new ApiError(400, 'GitHub items need ?repo=owner/name&number=<issue number>')
+            );
+            return;
+        }
+        params.repo = repo;
+        params.number = number;
+        cacheId = `${externalId}:${repo}#${number}`;
+    }
+
+    const integration = await Integration.findOne({ userId, provider: providerStr, status: 'active' });
+    if (!integration) {
+        res.status(404).json(
+            new ApiError(404, `No connected ${PROVIDER_LABELS[providerStr]} integration was found`)
+        );
+        return;
+    }
+
+    const cached = await readDetail(userId, providerStr, cacheId);
+    if (cached) {
+        res.status(200).json(new ApiResponse(200, cached, 'Item detail fetched'));
+        return;
+    }
+
+    try {
+        const adapter = getAdapter(providerStr);
+        if (!adapter) throw new Error(`No adapter registered for provider: ${providerStr}`);
+        const accessToken = await resolveAccessToken(integration);
+        const detail = await adapter.fetchDetail(accessToken, externalId, params);
+        await writeDetail(userId, providerStr, cacheId, detail);
+        res.status(200).json(new ApiResponse(200, detail, 'Item detail fetched'));
+    } catch (error) {
+        await sendProviderCallError(res, integration, error, 'fetch item detail');
+    }
+};
+
+// Shared by detail and options: an auth failure revokes and answers 401, anything else 502.
+async function sendProviderCallError(
+    res: Response,
+    integration: HydratedDocument<IIntegration>,
+    error: unknown,
+    what: string
+): Promise<void> {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`[Integrations] ${integration.provider} failed to ${what}:`, error);
+    if (error instanceof IntegrationAuthError) {
+        try {
+            if (integration.status === 'active') await markIntegrationRevoked(integration);
+        } catch (saveError) {
+            console.warn(`[Integrations] Failed to mark ${integration.provider} as revoked:`, saveError);
+        }
+        res.status(401).json(new ApiError(401, message));
+        return;
+    }
+    res.status(502).json(new ApiError(502, message));
+}
+
+// ─── Settings and options ────────────────────────────────────────────────────────
+
+/**
+ * updateSettings: PUT /:provider/settings. Accepts only the keys for that provider, merges them,
+ * bumps that provider's cache generation, and returns the updated GET /integrations entry.
+ */
+export const updateSettings = async (req: Request, res: Response): Promise<void> => {
+    const userId = req.userId;
+    if (!userId) {
+        res.status(401).json(new ApiError(401, 'Unauthorized'));
+        return;
+    }
+
+    const providerStr = firstParam(req.params.provider);
+    if (!providerStr || !isValidProvider(providerStr)) {
+        res.status(400).json(new ApiError(400, `Unknown provider: ${providerStr}`));
+        return;
+    }
+
+    const existing = await Integration.findOne({ userId, provider: providerStr })
+        .select('settings')
+        .lean<{ settings?: IntegrationEntrySource['settings'] }>();
+    if (!existing) {
+        res.status(404).json(
+            new ApiError(404, `No connected ${PROVIDER_LABELS[providerStr]} integration was found`)
+        );
+        return;
+    }
+
+    const result = applySettingsUpdate(providerStr, resolveSettings(existing.settings), req.body);
+    if (!result.ok) {
+        res.status(400).json(new ApiError(400, result.message));
+        return;
+    }
+
+    const updated = await Integration.findOneAndUpdate(
+        { userId, provider: providerStr },
+        { $set: { settings: result.settings } },
+        { new: true }
+    )
+        .select('-accessToken -refreshToken')
+        .lean<IntegrationEntrySource>();
+    if (!updated) {
+        res.status(404).json(
+            new ApiError(404, `No connected ${PROVIDER_LABELS[providerStr]} integration was found`)
+        );
+        return;
+    }
+
+    await invalidateProviderItems(userId, providerStr);
+
+    res.status(200).json(new ApiResponse(200, toIntegrationEntry(updated), 'Integration settings updated'));
+};
+
+/**
+ * getOptions: GET /:provider/options, the choices the Configure screen offers.
+ * gmail: { labels: {id, name}[] }, notion: { databases: {id, title}[] }, github: {}.
+ */
+export const getOptions = async (req: Request, res: Response): Promise<void> => {
+    const userId = req.userId;
+    if (!userId) {
+        res.status(401).json(new ApiError(401, 'Unauthorized'));
+        return;
+    }
+
+    const providerStr = firstParam(req.params.provider);
+    if (!providerStr || !isValidProvider(providerStr)) {
+        res.status(400).json(new ApiError(400, `Unknown provider: ${providerStr}`));
+        return;
+    }
+
+    const integration = await Integration.findOne({ userId, provider: providerStr, status: 'active' });
+    if (!integration) {
+        res.status(404).json(
+            new ApiError(404, `No connected ${PROVIDER_LABELS[providerStr]} integration was found`)
+        );
+        return;
+    }
+
+    try {
+        const adapter = getAdapter(providerStr);
+        if (!adapter) throw new Error(`No adapter registered for provider: ${providerStr}`);
+        const accessToken = await resolveAccessToken(integration);
+        const options = await adapter.fetchOptions(accessToken);
+        res.status(200).json(new ApiResponse(200, options, 'Integration options fetched'));
+    } catch (error) {
+        await sendProviderCallError(res, integration, error, 'fetch options');
+    }
 };

@@ -55,6 +55,19 @@ export interface AuthUser {
   plan?: "free" | "pro";
   trialEndsAt?: string | null;
   lastLogin?: string;
+  timezone?: string;
+  calendarReminderMinutes?: number;
+  weekStartsOn?: 0 | 1;
+  emailPrefs?: { weeklyBacklogDigest: boolean };
+}
+
+/** Every field is optional: the server only writes the ones that are sent. */
+export interface UpdateUserPayload {
+  name?: string;
+  calendarReminderMinutes?: number;
+  timezone?: string;
+  weekStartsOn?: 0 | 1;
+  emailPrefs?: { weeklyBacklogDigest: boolean };
 }
 
 export function register(payload: RegisterPayload): Promise<RegisterResponseData> {
@@ -91,6 +104,11 @@ export function logout(): Promise<null> {
  */
 export function getCurrentUser(userId: string): Promise<AuthUser> {
   return apiClient.get<AuthUser>(`/auth/me/${userId}`);
+}
+
+/** Updates the signed in user's profile and preferences. Returns the saved user. */
+export function updateUser(userId: string, payload: UpdateUserPayload): Promise<AuthUser> {
+  return apiClient.put<AuthUser>(`/auth/update/${userId}`, payload);
 }
 
 /**

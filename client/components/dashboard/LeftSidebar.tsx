@@ -11,6 +11,8 @@ import {
   Sunrise,
   Moon,
   Sparkles,
+  Inbox,
+  Check,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -26,23 +28,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { WeeklyRitualsPanel } from "./panels/WeeklyRitualsPanel";
 import { SearchNavItem } from "./SearchNavItem";
 import { ZenithLogo } from "@/components/brand/ZenithLogo";
 
 export function LeftSidebar() {
   const router = useRouter();
   const {
-    setShowDailyPlanner,
+    setDailyRitual,
+    setShowHighlights,
+    todayRitual,
+    weeklyPlanningCompletedAt,
+    weeklyReviewCompletedAt,
     setFocusMode,
     setShowWeeklyRituals,
-    showWeeklyRituals,
-    weeklyRitualType,
     focusMode,
     focusMinimized,
     focusRunning,
     jumpToDate,
     tasks,
+    setShowBacklog,
+    showBacklog,
+    backlogTasks,
   } = useApp();
   const logout = useAuthStore((state) => state.logout);
   const userEmail = useAuthStore((state) => state.user?.email);
@@ -65,21 +71,24 @@ export function LeftSidebar() {
       label: "Daily planning",
       icon: Sunrise,
       iconClass: "text-tag-work",
-      onClick: () => setShowDailyPlanner(true),
+      done: Boolean(todayRitual.plannedAt),
+      onClick: () => setDailyRitual("planning"),
     },
     {
       id: "shutdown",
       label: "Daily shutdown",
       icon: Moon,
       iconClass: "text-tag-personal",
-      onClick: () => setShowDailyPlanner(true),
+      done: Boolean(todayRitual.shutdownAt),
+      onClick: () => setDailyRitual("shutdown"),
     },
     {
       id: "highlights",
       label: "Daily highlights",
       icon: Sparkles,
       iconClass: "text-tag-health",
-      onClick: () => setShowDailyPlanner(true),
+      done: false,
+      onClick: () => setShowHighlights(true),
     },
   ];
   const weeklyRituals = [
@@ -89,6 +98,7 @@ export function LeftSidebar() {
       icon: CalendarCheck,
       description: "Plan your week ahead",
       iconClass: "text-brand",
+      done: Boolean(weeklyPlanningCompletedAt),
       onClick: () => setShowWeeklyRituals(true, "planning"),
     },
     {
@@ -97,6 +107,7 @@ export function LeftSidebar() {
       icon: TrendingUp,
       description: "Review your progress",
       iconClass: "text-tag-personal",
+      done: Boolean(weeklyReviewCompletedAt),
       onClick: () => setShowWeeklyRituals(true, "review"),
     },
   ];
@@ -171,6 +182,18 @@ export function LeftSidebar() {
             <Target className="w-5 h-5 text-tag-health" />
             <span>Focus</span>
           </motion.button>
+          <motion.button
+            onClick={() => setShowBacklog(!showBacklog)}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className={cn("sidebar-nav-item w-full", showBacklog && "active")}
+          >
+            <Inbox className="w-5 h-5 text-muted-foreground" />
+            <span className="flex-1 text-left">Backlog</span>
+            {backlogTasks.length > 0 && (
+              <span className="text-xs text-muted-foreground">{backlogTasks.length}</span>
+            )}
+          </motion.button>
         </nav>
 
         {/* Daily Rituals */}
@@ -189,6 +212,7 @@ export function LeftSidebar() {
                 <span className="text-sm text-foreground flex-1 text-left">
                   {ritual.label}
                 </span>
+                {ritual.done && <Check className="w-4 h-4 text-status-open" aria-label="Done today" />}
                 <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             ))}
@@ -224,6 +248,7 @@ export function LeftSidebar() {
                     {ritual.description}
                   </p>
                 </div>
+                {ritual.done && <Check className="w-4 h-4 text-status-open" aria-label="Done this week" />}
                 <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </motion.button>
             ))}
@@ -257,12 +282,6 @@ export function LeftSidebar() {
         </div>
       </aside>
 
-      {/* Weekly Rituals Panel */}
-      <WeeklyRitualsPanel
-        isOpen={showWeeklyRituals}
-        onClose={() => setShowWeeklyRituals(false)}
-        type={weeklyRitualType}
-      />
     </>
   );
 }

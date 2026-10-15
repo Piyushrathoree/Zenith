@@ -7,21 +7,23 @@ import './config/passport.ts';
 
 import app from './app.ts';
 import connectDB from './db/connect.ts';
-import { startEmailWorker } from './modules/notification/email.worker.ts';
+import { startWorkers } from './jobs/index.ts';
 
 /**
  * Ordered startup:
  *  1. Validate env (already done by env.ts import above — crashes if invalid)
  *  2. Connect to MongoDB
- *  3. Start BullMQ email worker
+ *  3. Start background workers (skipped when RUN_WORKERS=false, see worker.ts)
  *  4. Start Express HTTP server
  */
 const startServer = async (): Promise<void> => {
     // 1. Connect DB — exits process if it fails
     await connectDB();
 
-    // 2. Start email worker in-process
-    startEmailWorker();
+    // 2. Start email and scheduler workers in-process
+    if (env.RUN_WORKERS === 'true') {
+        startWorkers();
+    }
 
     // 3. Start HTTP server
     app.listen(env.PORT, () => {

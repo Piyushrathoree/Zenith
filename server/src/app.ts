@@ -11,6 +11,7 @@ import { ApiError } from './utils/ApiError.ts';
 import authRoutes from './modules/auth/auth.routes.ts';
 import plannerRoutes from './modules/planner/planner.routes.ts';
 import integrationRoutes from './modules/integration/integration.routes.ts';
+import calendarRoutes from './modules/calendar/calendar.routes.ts';
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/planner', plannerRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
+app.use('/api/v1/calendar', calendarRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {

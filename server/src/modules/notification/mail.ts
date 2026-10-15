@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { env } from '../../config/env.ts';
-import { welcomeEmail, verificationCodeMail, resetPasswordMail } from './templates.ts';
+import { welcomeEmail, verificationCodeMail, resetPasswordMail, buildWeeklyBacklogMail } from './templates.ts';
 import { ApiError } from '../../utils/ApiError.ts';
 
 const transporter = nodemailer.createTransport({
@@ -11,10 +11,18 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+export type WeeklyBacklogEmailData = {
+    movedTitles: string[];
+    movedCount: number;
+    completedLastWeek: number;
+    backlogTotal: number;
+};
+
 export type EmailJobData = {
     email: string;
     code?: string;
     resetLink?: string;
+    weekly?: WeeklyBacklogEmailData;
 };
 
 export const sendVerificationCode = async ({ email, code }: EmailJobData): Promise<void> => {
@@ -33,6 +41,16 @@ export const sendWelcomeMail = async ({ email }: EmailJobData): Promise<void> =>
         to: email,
         subject: 'Welcome to Zenith!',
         html: welcomeEmail.replace('FRONTEND_URL', env.FRONTEND_URL),
+    });
+};
+
+export const sendWeeklyBacklogMail = async ({ email, weekly }: EmailJobData): Promise<void> => {
+    if (!weekly) throw new ApiError(400, 'Weekly digest data is required');
+    await transporter.sendMail({
+        from: env.GMAIL_USER,
+        to: email,
+        subject: `${weekly.movedCount} unfinished ${weekly.movedCount === 1 ? 'task' : 'tasks'} moved to your Zenith backlog`,
+        html: buildWeeklyBacklogMail(weekly, env.FRONTEND_URL),
     });
 };
 

@@ -1,4 +1,6 @@
 import { Document, Schema, model } from 'mongoose';
+import type { IntegrationErrorCode, IntegrationSettings } from './adapters/types.ts';
+import { INTEGRATION_ERROR_CODES } from './adapters/types.ts';
 
 // ─── Integration ──────────────────────────────────────────────────────────────
 // Stores OAuth tokens for third-party integrations.
@@ -18,7 +20,24 @@ export interface IIntegration extends Document {
     };
     expiresAt?: Date;
     status: 'active' | 'expired' | 'revoked';
+    // Connection health: when items were last fetched successfully, and the last failure code.
+    lastSyncedAt?: Date;
+    lastError?: IntegrationErrorCode;
+    lastErrorAt?: Date;
+    settings: IntegrationSettings;
 }
+
+const settingsSchema = new Schema<IntegrationSettings>({
+    gmailPreset: {
+        type: String,
+        enum: ['inbox', 'starred', 'unread', 'important', 'label'],
+        default: 'inbox',
+    },
+    gmailLabelId: { type: String },
+    notionMode: { type: String, enum: ['pages', 'databases'], default: 'pages' },
+    notionDatabaseIds: { type: [String], default: [] },
+    githubIncludeReviews: { type: Boolean, default: true },
+}, { _id: false });
 
 const integrationSchema = new Schema<IIntegration>({
     // req.userId is already a string on the auth middleware, so this stays a
@@ -38,6 +57,10 @@ const integrationSchema = new Schema<IIntegration>({
         enum: ['active', 'expired', 'revoked'],
         default: 'active',
     },
+    lastSyncedAt: { type: Date },
+    lastError: { type: String, enum: INTEGRATION_ERROR_CODES },
+    lastErrorAt: { type: Date },
+    settings: { type: settingsSchema, default: () => ({}) },
 }, { timestamps: true });
 
 // One integration per user per provider

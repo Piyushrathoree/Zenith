@@ -3,6 +3,8 @@ import { X, Github, Mail, FileText, ExternalLink, Clock } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { safeFormat, safeFormatDistanceToNow } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
+import { itemKey } from "@/lib/integrationTasks";
+import { IntegrationDetailExtras } from "@/components/dashboard/integration/IntegrationDetailExtras";
 
 export function IntegrationDetailModal() {
   const {
@@ -411,6 +413,7 @@ export function IntegrationDetailModal() {
               </div>
             </>
           )}
+          <IntegrationDetailExtras key={itemKey(selectedIntegrationDetail)} item={selectedIntegrationDetail} />
         </motion.div>
       </motion.div>
     </AnimatePresence>

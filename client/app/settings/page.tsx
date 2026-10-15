@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,6 +13,24 @@ import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -25,6 +43,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuthStore } from "@/store/useAuthStore";
 import { apiClient, ApiRequestError } from "@/lib/api/client";
+import type { UpdateUserPayload } from "@/lib/api/auth";
+import {
+  disconnectCalendar,
+  getCalendarStatus,
+  startCalendarConnect,
+  type CalendarStatus,
+} from "@/lib/api/calendar";
 
 const changePasswordSchema = z
   .object({
@@ -73,6 +98,247 @@ function AppearanceSection() {
           aria-label="Toggle dark mode"
         />
       </div>
+    </section>
+  );
+}
+
+function PreferencesSection() {
+  const user = useAuthStore((state) => state.user);
+  const updateProfile = useAuthStore((state) => state.updateProfile);
+
+  const timezone = user?.timezone ?? "UTC";
+  const weekStartsOn = user?.weekStartsOn ?? 1;
+  const weeklyEmail = user?.emailPrefs?.weeklyBacklogDigest ?? true;
+
+  // The saved zone is added to the list if the runtime does not report it, so the select can always show it.
+  const timeZones = Array.from(
+    new Set(["UTC", ...Intl.supportedValuesOf("timeZone"), timezone])
+  );
+
+  const save = async (payload: UpdateUserPayload, message: string) => {
+    try {
+      await updateProfile(payload);
+      toast.success(message);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save your settings");
+    }
+  };
+
+  return (
+    <section id="preferences" className="rounded-2xl border-2 border-foreground/15 bg-card p-6 shadow-soft">
+      <p className="text-sm font-medium text-foreground">Preferences</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Used for what counts as today, your weekly planning, and emails.
+      </p>
+
+      <div className="mt-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-muted/30 px-3 py-3">
+          <div>
+            <p className="text-sm text-foreground">Timezone</p>
+            <p className="text-xs text-muted-foreground">Decides when your day starts and ends.</p>
+          </div>
+          <Select
+            value={timezone}
+            disabled={!user}
+            onValueChange={(value) => save({ timezone: value }, "Timezone saved")}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              {timeZones.map((zone) => (
+                <SelectItem key={zone} value={zone}>
+                  {zone}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-muted/30 px-3 py-3">
+          <div>
+            <p className="text-sm text-foreground">Week starts on</p>
+            <p className="text-xs text-muted-foreground">Used for weekly planning.</p>
+          </div>
+          <Select
+            value={String(weekStartsOn)}
+            disabled={!user}
+            onValueChange={(value) =>
+              save({ weekStartsOn: Number(value) as 0 | 1 }, "Week start saved")
+            }
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Monday</SelectItem>
+              <SelectItem value="0">Sunday</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-muted/30 px-3 py-3">
+          <div>
+            <p className="text-sm text-foreground">Weekly backlog email</p>
+            <p className="text-xs text-muted-foreground">
+              Once a week, a summary of tasks that moved to your backlog.
+            </p>
+          </div>
+          <Switch
+            checked={weeklyEmail}
+            disabled={!user}
+            onCheckedChange={(checked) =>
+              save({ emailPrefs: { weeklyBacklogDigest: checked } }, "Email preference saved")
+            }
+            aria-label="Weekly backlog email"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const REMINDER_OPTIONS = [0, 5, 10, 15, 30];
+
+function calendarErrorMessage(reason: string | null): string {
+  if (reason === "denied") return "You cancelled the Google permission screen";
+  return "Could not connect Google Calendar, please try again";
+}
+
+function CalendarSection() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const user = useAuthStore((state) => state.user);
+  const updateProfile = useAuthStore((state) => state.updateProfile);
+  const [status, setStatus] = useState<CalendarStatus | null>(null);
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    getCalendarStatus()
+      .then(setStatus)
+      .catch(() => setStatus({ connected: false, status: null }));
+  }, []);
+
+  // Google sends the browser back here with the result in the URL. Show it once, then clean the URL.
+  useEffect(() => {
+    const result = searchParams.get("calendar");
+    if (!result) return;
+    if (result === "connected") {
+      toast.success("Google Calendar connected");
+      getCalendarStatus().then(setStatus).catch(() => undefined);
+    } else {
+      toast.error(calendarErrorMessage(searchParams.get("reason")));
+    }
+    router.replace("/settings");
+  }, [searchParams, router]);
+
+  const connect = () => {
+    setConnecting(true);
+    startCalendarConnect().catch(() => {
+      toast.error("Could not start the Google connection, please try again");
+      setConnecting(false);
+    });
+  };
+
+  const disconnect = async () => {
+    try {
+      await disconnectCalendar();
+      setStatus({ connected: false, status: null });
+      toast.success("Google Calendar disconnected");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not disconnect Google Calendar");
+    }
+  };
+
+  const saveReminder = async (minutes: number) => {
+    try {
+      await updateProfile({ calendarReminderMinutes: minutes });
+      toast.success("Reminder saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save the reminder");
+    }
+  };
+
+  const reminder = user?.calendarReminderMinutes ?? 10;
+
+  return (
+    <section className="rounded-2xl border-2 border-foreground/15 bg-card p-6 shadow-soft">
+      <p className="text-sm font-medium text-foreground">Google Calendar</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Time boxed tasks appear in a Zenith calendar, so your phone reminds you before each one.
+      </p>
+
+      {status === null && <p className="mt-4 text-sm text-muted-foreground">Checking...</p>}
+
+      {status && !status.connected && (
+        <Button type="button" variant="brand" className="mt-4" onClick={connect} disabled={connecting}>
+          {connecting ? "Opening Google..." : "Connect Google Calendar"}
+        </Button>
+      )}
+
+      {status?.connected && status.status === "active" && (
+        <div className="mt-4 space-y-4">
+          <p className="text-sm text-foreground">
+            Connected. Tasks with a time appear in your Zenith calendar.
+          </p>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-muted/30 px-3 py-3">
+            <div>
+              <p className="text-sm text-foreground">Remind me</p>
+              <p className="text-xs text-muted-foreground">Before each task starts.</p>
+            </div>
+            <Select value={String(reminder)} onValueChange={(value) => saveReminder(Number(value))}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {REMINDER_OPTIONS.map((minutes) => (
+                  <SelectItem key={minutes} value={String(minutes)}>
+                    {minutes === 0 ? "No reminder" : `${minutes} minutes before`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            On your phone, allow notifications for the Calendar app (iPhone) or Google Calendar (Android),
+            and keep the Zenith calendar turned on.
+          </p>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="destructive">Disconnect</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Disconnect Google Calendar?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes the Zenith calendar and all its events from your Google account.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                  onClick={disconnect}
+                >
+                  Disconnect
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
+      {status?.connected && status.status === "revoked" && (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-destructive">Google access expired. Reconnect to keep syncing.</p>
+          <Button type="button" variant="brand" onClick={connect} disabled={connecting}>
+            Reconnect
+          </Button>
+        </div>
+      )}
     </section>
   );
 }
@@ -220,6 +486,11 @@ export default function SettingsPage() {
               <p className="text-sm font-medium text-foreground">Settings</p>
             </div>
             <AppearanceSection />
+            <PreferencesSection />
+            {/* useSearchParams needs a Suspense boundary so the page can still prerender. */}
+            <Suspense fallback={null}>
+              <CalendarSection />
+            </Suspense>
             <PlanSection />
             <ChangePasswordSection />
             <AccountSection />

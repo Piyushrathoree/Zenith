@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatTime12h } from "@/lib/formatDate";
+import { buildRule, type RepeatPreset } from "@/lib/recurrence";
+import { RepeatPicker } from "./RepeatPicker";
 
 type TaskTag = "work" | "personal" | "health";
 
@@ -44,30 +47,35 @@ const DURATIONS = [
   { value: "2:00", label: "2 hr" },
 ];
 
+// Stored as 24h "HH:mm" (see docs/roadmap/phase-0-foundations.md). Shown with formatTime12h.
 const TIME_SLOTS = [
-  "7:00 am",
-  "8:00 am",
-  "9:00 am",
-  "10:00 am",
-  "11:00 am",
-  "12:00 pm",
-  "1:00 pm",
-  "2:00 pm",
-  "3:00 pm",
-  "4:00 pm",
-  "5:00 pm",
-  "6:00 pm",
-  "7:00 pm",
-  "8:00 pm",
+  "07:00",
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+  "20:00",
 ];
 
 export function CreateTaskModal() {
-  const { showCreateModal, createTaskDate, setShowCreateModal, addTask } = useApp();
+  const { showCreateModal, createTaskDate, setShowCreateModal, addTask, createRecurringTask } = useApp();
   const [title, setTitle] = useState("");
   const [tag, setTag] = useState<TaskTag>("work");
   const [date, setDate] = useState<Date>(new Date());
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState("1:00");
+  const [repeat, setRepeat] = useState<{ preset: RepeatPreset; weekDays: number[] }>({
+    preset: "none",
+    weekDays: [],
+  });
 
   useEffect(() => {
     if (!showCreateModal) return;
@@ -77,6 +85,7 @@ export function CreateTaskModal() {
     setTime("");
     setTag("work");
     setDuration("1:00");
+    setRepeat({ preset: "none", weekDays: [] });
   }, [showCreateModal, createTaskDate]);
 
   const close = () => {
@@ -89,14 +98,28 @@ export function CreateTaskModal() {
     e.preventDefault();
     if (!title.trim()) return;
 
-    addTask({
-      title: title.trim(),
-      time: time || undefined,
-      duration,
-      tag,
-      date: format(date, "yyyy-MM-dd"),
-      completed: false,
-    });
+    const day = format(date, "yyyy-MM-dd");
+    const rrule = buildRule(repeat.preset, repeat.weekDays, day);
+    if (rrule) {
+      // A repeating task is a template on the server, which then generates the days.
+      createRecurringTask({
+        title: title.trim(),
+        channel: tag,
+        duration,
+        startTime: time,
+        rrule,
+        startsOn: day,
+      });
+    } else {
+      addTask({
+        title: title.trim(),
+        time: time || undefined,
+        duration,
+        tag,
+        date: day,
+        completed: false,
+      });
+    }
 
     close();
   };
@@ -219,7 +242,7 @@ export function CreateTaskModal() {
                       >
                         <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <span className={cn(!time && "text-muted-foreground")}>
-                          {time || "Anytime"}
+                          {time ? formatTime12h(time) : "Anytime"}
                         </span>
                       </button>
                     </PopoverTrigger>
@@ -249,7 +272,7 @@ export function CreateTaskModal() {
                                 : "border-foreground/10 text-muted-foreground hover:border-foreground/20 hover:text-foreground"
                             )}
                           >
-                            {slot}
+                            {formatTime12h(slot)}
                           </button>
                         ))}
                       </div>
@@ -277,6 +300,16 @@ export function CreateTaskModal() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="mt-5">
+                <p className="mb-2 text-xs text-muted-foreground">Repeat</p>
+                <RepeatPicker
+                  preset={repeat.preset}
+                  weekDays={repeat.weekDays}
+                  monthDay={date.getDate()}
+                  onChange={setRepeat}
+                />
               </div>
 
               <div className="mt-6 flex items-center justify-end gap-2">

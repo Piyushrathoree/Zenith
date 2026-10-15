@@ -1,8 +1,9 @@
 import { Task } from "@/types";
-import { Circle, CheckCircle2, Github } from "lucide-react";
+import { Circle, CheckCircle2, FileText, Github, Mail, Repeat } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { formatTime12h } from "@/lib/formatDate";
 import { useApp } from "@/context/AppContext";
 
 interface TaskCardProps {
@@ -80,7 +81,7 @@ export function TaskCard({ task }: TaskCardProps) {
           <div className="flex items-center justify-between">
             {task.time ? (
               <span className="text-xs font-medium text-muted-foreground">
-                {task.time}
+                {formatTime12h(task.time)}
               </span>
             ) : (
               <span />
@@ -104,7 +105,16 @@ export function TaskCard({ task }: TaskCardProps) {
               #{task.tag}
             </span>
             {task.source === "github" && (
-              <Github className="w-3.5 h-3.5 text-muted-foreground" />
+              <Github className="w-3.5 h-3.5 text-muted-foreground" aria-label="From GitHub" />
+            )}
+            {task.source === "gmail" && (
+              <Mail className="w-3.5 h-3.5 text-muted-foreground" aria-label="From Gmail" />
+            )}
+            {task.source === "notion" && (
+              <FileText className="w-3.5 h-3.5 text-muted-foreground" aria-label="From Notion" />
+            )}
+            {task.recurringTaskId && (
+              <Repeat className="w-3.5 h-3.5 text-muted-foreground" aria-label="Repeats" />
             )}
           </div>
         </div>

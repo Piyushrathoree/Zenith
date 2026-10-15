@@ -1,39 +1,18 @@
+import { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { useAuthStore } from "@/store/useAuthStore";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GitHubIssueCard } from "./integration/GitHubIssueCard";
 import { GitHubPRCard } from "./integration/GitHubPRCard";
 import { GmailCard } from "./integration/GmailCard";
 import { NotionCard } from "./integration/NotionCard";
-import {
-  RefreshCw,
-  ChevronDown,
-  Check,
-  X,
-  Github,
-  Mail,
-  FileText,
-} from "lucide-react";
+import { IntegrationItemActions } from "./integration/IntegrationItemActions";
+import { IntegrationConfigure } from "./integration/IntegrationConfigure";
+import { RefreshCw, Settings2, X, Github, Mail, FileText, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { IntegrationProvider } from "@/lib/api/integrations";
-
-/**
- * True when the user's plan entitles them to integrations: pro, or an
- * active trial (mirrors the server's plan gate, see
- * featureGate.middleware.ts). Kept as a plain top level function rather than
- * inlined in the component body, so the component's render itself never
- * calls the impure Date.now directly.
- */
-function isIntegrationsEntitled(
-  user: { plan?: "free" | "pro"; trialEndsAt?: string | null } | null | undefined
-): boolean {
-  return (
-    user?.plan === "pro" ||
-    Boolean(user?.trialEndsAt && new Date(user.trialEndsAt).getTime() > Date.now())
-  );
-}
+import { safeFormatDistanceToNow } from "@/lib/formatDate";
+import type { IntegrationErrorCode, IntegrationProvider } from "@/lib/api/integrations";
+import type { IntegrationItem } from "@/lib/integrationTasks";
 
 /**
  * Per provider copy and icon used by the connect prompt and the empty but
@@ -48,21 +27,21 @@ const PROVIDER_META: Record<
     label: "GitHub",
     icon: Github,
     connectDescription:
-      "Pulls your assigned issues and pull requests into this panel, so you can drag them onto your board.",
+      "Pulls in issues and pull requests assigned to you, ones you opened, and review requests. Add them to your day with one click.",
     emptyMessage: "No issues or pull requests to show right now.",
   },
   gmail: {
     label: "Gmail",
     icon: Mail,
     connectDescription:
-      "Pulls your recent inbox messages into this panel, so you can drag them onto your board.",
+      "Pulls in your inbox (or starred, unread, or a label). Turn an email into a task with one click.",
     emptyMessage: "No messages to show right now.",
   },
   notion: {
     label: "Notion",
     icon: FileText,
     connectDescription:
-      "Pulls your recently edited pages into this panel, so you can drag them onto your board.",
+      "Pulls in recent pages or rows from the databases you pick. Plan them like any task.",
     emptyMessage: "No pages to show right now.",
   },
 };
@@ -98,37 +77,6 @@ function IntegrationConnectPrompt({
   );
 }
 
-/** Centered, calm prompt shown when integrations are gated behind Pro (free plan, no active trial). */
-function IntegrationUpgradePrompt({
-  provider,
-  onUpgrade,
-}: {
-  provider: IntegrationProvider;
-  onUpgrade: () => void;
-}) {
-  const meta = PROVIDER_META[provider];
-  const Icon = meta.icon;
-
-  return (
-    <div className="flex flex-col items-center gap-4 px-4 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft shadow-inset-soft">
-        <Icon className="h-5 w-5 text-brand" />
-      </div>
-      <div className="space-y-1">
-        <h3 className="text-sm font-medium text-foreground">
-          Integrations are part of Pro
-        </h3>
-        <p className="text-xs text-muted-foreground max-w-[220px]">
-          Connect GitHub, Gmail, and Notion to pull your work into one place.
-        </p>
-      </div>
-      <Button size="sm" onClick={onUpgrade}>
-        View plan
-      </Button>
-    </div>
-  );
-}
-
 /**
  * Quiet inline notice used for two states that share the same calm, non
  * alarming visual language: a provider whose last items fetch failed, and a
@@ -138,26 +86,32 @@ function IntegrationUpgradePrompt({
 function IntegrationInlineNotice({
   title,
   message,
-  onReconnect,
+  actionLabel,
+  onAction,
+  link,
 }: {
   title: string;
   message: string;
-  onReconnect: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
+  link?: { href: string; label: string };
 }) {
   return (
     <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3.5 shadow-inset-soft">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-foreground">{title}</p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onReconnect}
-          className="h-7 px-2 text-xs shrink-0"
-        >
-          Reconnect
-        </Button>
+        {actionLabel && onAction && (
+          <Button variant="ghost" size="sm" onClick={onAction} className="h-7 px-2 text-xs shrink-0">
+            {actionLabel}
+          </Button>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">{message}</p>
+      {link && (
+        <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-xs text-brand underline underline-offset-2">
+          {link.label}
+        </a>
+      )}
     </div>
   );
 }
@@ -196,9 +150,37 @@ function IntegrationSkeletonList() {
   );
 }
 
+/** Copy for each connection problem, so the panel can say exactly what to do. */
+function problemCopy(
+  provider: IntegrationProvider,
+  code: IntegrationErrorCode | null | undefined,
+  fallback: string
+): { title: string; message: string; action: "reconnect" | "retry"; link?: { href: string; label: string } } {
+  const label = PROVIDER_META[provider].label;
+  switch (code) {
+    case "needs_reconnect":
+      return provider === "gmail"
+        ? {
+            title: "Google needs you to sign in again",
+            message: "This happens every 7 days while your Google app is in Testing mode. Reconnect to keep your inbox here.",
+            action: "reconnect",
+          }
+        : { title: `Your ${label} connection expired`, message: `Reconnect to keep pulling ${label} into your day.`, action: "reconnect" };
+    case "rate_limited":
+      return { title: `${label} is limiting requests`, message: "Try again in a few minutes.", action: "retry" };
+    case "org_access":
+      return {
+        title: "Some organization items are hidden",
+        message: "A GitHub organization you belong to has not granted Zenith access yet.",
+        action: "retry",
+        link: { href: "https://github.com/settings/applications", label: "Review access in GitHub settings" },
+      };
+    default:
+      return { title: `Couldn't reach ${label}`, message: fallback || "Try again in a moment.", action: "retry" };
+  }
+}
+
 export function IntegrationPanel() {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user);
   const {
     activeIntegration,
     setActiveIntegration,
@@ -206,75 +188,115 @@ export function IntegrationPanel() {
     githubPRs,
     gmailMessages,
     notionPages,
+    integrationItems,
     integrationTab,
     setIntegrationTab,
     connectedIntegrations,
     integrationErrors,
+    integrationCursors,
+    loadingMoreProvider,
     isIntegrationsLoading,
     integrationsLoaded,
     isIntegrationsRefreshing,
     connectIntegration,
     disconnectIntegration,
-    refreshIntegrationItems,
+    refreshIntegrationProvider,
+    loadMoreIntegrationItems,
   } = useApp();
+  const [query, setQuery] = useState("");
+  const [repo, setRepo] = useState("all");
+  const [showConfigure, setShowConfigure] = useState(false);
 
   if (!activeIntegration) return null;
 
-  // Narrowed by the guard above: IntegrationType minus null is exactly
-  // IntegrationProvider, so this is a plain rename, not a real cast.
   const provider: IntegrationProvider = activeIntegration;
   const meta = PROVIDER_META[provider];
-
-  const isEntitled = isIntegrationsEntitled(user);
-
   const connectedEntry = connectedIntegrations.find((c) => c.provider === provider);
-  // "Connected" means there is an entry AND it is active. An entry that is
-  // expired or revoked still shows up here (see loadIntegrations/listIntegrations),
-  // but it produces no items and no fetch error, so treating its mere
-  // presence as connected would show an empty, working looking panel forever.
+  // "Connected" means there is an entry AND it is active: a revoked entry produces no items.
   const isConnected = Boolean(connectedEntry) && connectedEntry?.status === "active";
   const providerError = integrationErrors.find((e) => e.provider === provider);
   const isInitialLoading = isIntegrationsLoading && !integrationsLoaded;
 
-  const currentItems =
+  // GitHub relation per item (assigned, created, review requested) from the raw items.
+  const relations = new Map(
+    integrationItems
+      .filter((item) => item.provider === "github")
+      .map((item) => [item.externalId, item.githubRelation ?? []])
+  );
+  const isReview = (externalId?: string) => (relations.get(externalId ?? "") ?? []).includes("review_requested");
+  const isMine = (externalId?: string) => {
+    const relation = relations.get(externalId ?? "") ?? [];
+    return relation.length === 0 || relation.includes("assigned") || relation.includes("created");
+  };
+
+  const q = query.trim().toLowerCase();
+  const matches = (...fields: (string | undefined)[]) =>
+    !q || fields.some((field) => field?.toLowerCase().includes(q));
+  const inRepo = (repository: string) => repo === "all" || repository === repo;
+
+  const repositories = Array.from(
+    new Set([...githubIssues, ...githubPRs].map((item) => item.repository).filter(Boolean))
+  ).sort();
+
+  const items: IntegrationItem[] =
     provider === "github"
       ? integrationTab === "issues"
         ? githubIssues
+            .filter((issue) => inRepo(issue.repository) && matches(issue.title, issue.repository))
+            .map((data) => ({ type: "github-issue" as const, data }))
         : githubPRs
+            .filter((pr) => (integrationTab === "reviews" ? isReview(pr.externalId) : isMine(pr.externalId)))
+            .filter((pr) => inRepo(pr.repository) && matches(pr.title, pr.repository))
+            .map((data) => ({ type: "github-pr" as const, data }))
       : provider === "gmail"
-      ? gmailMessages
-      : notionPages;
+        ? gmailMessages
+            .filter((message) => matches(message.subject, message.from, message.snippet))
+            .map((data) => ({ type: "gmail" as const, data }))
+        : notionPages
+            .filter((page) => matches(page.title, page.workspace))
+            .map((data) => ({ type: "notion" as const, data }));
 
-  // Panel state machine, mutually exclusive and exhaustive:
-  //   1. loading      - the initial integrations fetch has not resolved yet
-  //   2. not-entitled  - free plan, no active trial: integrations are gated behind Pro
-  //   3. not-connected - entitled, but there is no entry for this provider
-  //   4. inactive      - an entry exists, but its status is expired or revoked
-  //   5. error         - the entry is active, but its last items fetch failed
-  //   6. empty         - the entry is active, the fetch succeeded, nothing to show
-  //   7. items         - the entry is active, the fetch succeeded, something to show
-  type PanelState =
-    | "loading"
-    | "not-entitled"
-    | "not-connected"
-    | "inactive"
-    | "error"
-    | "empty"
-    | "items";
+  const hasAnyItems =
+    provider === "github"
+      ? githubIssues.length + githubPRs.length > 0
+      : provider === "gmail"
+        ? gmailMessages.length > 0
+        : notionPages.length > 0;
 
+  type PanelState = "loading" | "not-connected" | "inactive" | "error" | "empty" | "items";
   const panelState: PanelState = isInitialLoading
     ? "loading"
-    : !isEntitled
-    ? "not-entitled"
     : !connectedEntry
-    ? "not-connected"
-    : connectedEntry.status !== "active"
-    ? "inactive"
-    : providerError
-    ? "error"
-    : currentItems.length === 0
-    ? "empty"
-    : "items";
+      ? "not-connected"
+      : connectedEntry.status !== "active"
+        ? "inactive"
+        : hasAnyItems
+          ? "items"
+          : providerError
+            ? "error"
+            : "empty";
+
+  const problem = providerError
+    ? problemCopy(provider, providerError.code, providerError.error)
+    : panelState === "inactive"
+      ? problemCopy(provider, connectedEntry?.lastError ?? "needs_reconnect", "")
+      : null;
+  const runProblemAction = () =>
+    problem?.action === "reconnect" ? connectIntegration(provider) : refreshIntegrationProvider(provider);
+
+  const renderCard = (item: IntegrationItem) => {
+    switch (item.type) {
+      case "github-issue":
+        return <GitHubIssueCard issue={item.data} />;
+      case "github-pr":
+        return <GitHubPRCard pr={item.data} />;
+      case "gmail":
+        return <GmailCard message={item.data} />;
+      case "notion":
+        return <NotionCard page={item.data} />;
+    }
+  };
+  const keyOf = (item: IntegrationItem) => `${item.type}-${"externalId" in item.data ? item.data.externalId ?? item.data.id : item.data.id}`;
 
   return (
     <AnimatePresence>
@@ -286,135 +308,118 @@ export function IntegrationPanel() {
         className="flex h-screen w-sidebar flex-col overflow-hidden border-l border-border bg-card/95 shadow-soft backdrop-blur-sm"
       >
         {/* Header */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-foreground capitalize">
-              {activeIntegration}
-            </h2>
+        <div className="space-y-3 border-b border-border p-4">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <h2 className="font-semibold text-foreground">{meta.label}</h2>
+              {isConnected && (
+                <p className="truncate text-xs text-muted-foreground">
+                  Synced {safeFormatDistanceToNow(connectedEntry?.lastSyncedAt, { addSuffix: true }, "not yet")}
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => refreshIntegrationItems()}
-                disabled={isIntegrationsRefreshing}
-                className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-50"
-                title="Refresh"
-                aria-label="Refresh"
-              >
-                <RefreshCw
-                  className={cn(
-                    "w-4 h-4 text-muted-foreground",
-                    isIntegrationsRefreshing && "animate-spin"
-                  )}
-                />
-              </button>
+              {isConnected && (
+                <>
+                  <button
+                    onClick={() => refreshIntegrationProvider(provider)}
+                    disabled={isIntegrationsRefreshing}
+                    className="rounded p-1 transition-colors hover:bg-muted disabled:opacity-50"
+                    title="Refresh"
+                    aria-label="Refresh"
+                  >
+                    <RefreshCw className={cn("h-4 w-4 text-muted-foreground", isIntegrationsRefreshing && "animate-spin")} />
+                  </button>
+                  <button
+                    onClick={() => setShowConfigure(!showConfigure)}
+                    className={cn("rounded p-1 transition-colors hover:bg-muted", showConfigure && "bg-muted")}
+                    title="Configure"
+                    aria-label="Configure"
+                    aria-expanded={showConfigure}
+                  >
+                    <Settings2 className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => setActiveIntegration(null)}
-                className="p-1 hover:bg-muted rounded transition-colors"
+                className="rounded p-1 transition-colors hover:bg-muted"
                 aria-label="Close panel"
               >
-                <X className="w-4 h-4 text-muted-foreground" />
+                <X className="h-4 w-4 text-muted-foreground" />
               </button>
             </div>
           </div>
 
-          {isConnected && connectedEntry && (
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <span className="text-xs text-muted-foreground truncate">
-                Connected as {connectedEntry.profile.username}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => disconnectIntegration(provider)}
-                className="h-6 px-2 text-xs shrink-0"
-              >
-                Disconnect
-              </Button>
+          {isConnected && connectedEntry && showConfigure && (
+            <IntegrationConfigure provider={provider} entry={connectedEntry} onDisconnect={() => disconnectIntegration(provider)} />
+          )}
+
+          {isConnected && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Search ${meta.label}`}
+                className="w-full rounded-lg border border-foreground/10 bg-muted/40 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-brand/40"
+              />
             </div>
           )}
 
-          {/* GitHub Tabs */}
-          {activeIntegration === "github" && (
-            <div className="flex gap-1 rounded-xl bg-muted/80 p-1 inset-sunken">
-              {(["issues", "prs"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setIntegrationTab(tab)}
-                  className={cn(
-                    "flex-1 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all duration-200",
-                    integrationTab === tab
-                      ? "bg-card text-foreground shadow-inset-soft"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
+          {isConnected && provider === "github" && (
+            <>
+              <div className="inset-sunken flex gap-1 rounded-xl bg-muted/80 p-1">
+                {(["issues", "prs", "reviews"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setIntegrationTab(tab)}
+                    className={cn(
+                      "flex-1 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all duration-200",
+                      integrationTab === tab
+                        ? "bg-card text-foreground shadow-inset-soft"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab === "prs" ? "PRs" : tab}
+                  </button>
+                ))}
+              </div>
+              {repositories.length > 1 && (
+                <select
+                  value={repo}
+                  onChange={(e) => setRepo(e.target.value)}
+                  className="w-full rounded-lg border border-foreground/10 bg-card px-2 py-1.5 text-xs text-muted-foreground"
+                  aria-label="Repository"
                 >
-                  {tab === "prs" ? "PRs" : tab}
-                </button>
-              ))}
-            </div>
+                  <option value="all">All repositories</option>
+                  {repositories.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
           )}
         </div>
 
-        {/* Filters (GitHub only) */}
-        {activeIntegration === "github" && (
-          <div className="p-4 border-b border-border space-y-3">
-            <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-              <span>All repositories</span>
-              <ChevronDown className="w-4 h-4" />
-            </button>
-
-            <div className="flex gap-2">
-              <button className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-lg text-sm">
-                <Check className="w-3.5 h-3.5 text-status-open" />
-                <span>Open</span>
-              </button>
-              <button className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted rounded-lg transition-colors">
-                Closed
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Assignee</span>
-              <button className="p-1.5 hover:bg-muted rounded transition-colors">
-                <RefreshCw className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <div className="flex-1 space-y-3 overflow-y-auto p-3">
           {panelState === "loading" && <IntegrationSkeletonList />}
 
-          {panelState === "not-entitled" && (
-            <IntegrationUpgradePrompt
-              provider={provider}
-              onUpgrade={() => router.push("/settings")}
-            />
-          )}
-
           {panelState === "not-connected" && (
-            <IntegrationConnectPrompt
-              provider={provider}
-              onConnect={() => connectIntegration(provider)}
-            />
+            <IntegrationConnectPrompt provider={provider} onConnect={() => connectIntegration(provider)} />
           )}
 
-          {panelState === "inactive" && (
+          {problem && (
             <IntegrationInlineNotice
-              title="This connection needs to be reconnected."
-              message={
-                connectedEntry?.profile.username
-                  ? `${connectedEntry.profile.username} is no longer active. Reconnect to keep pulling ${meta.label} into your board.`
-                  : `Reconnect to keep pulling ${meta.label} into your board.`
-              }
-              onReconnect={() => connectIntegration(provider)}
-            />
-          )}
-
-          {panelState === "error" && providerError && (
-            <IntegrationInlineNotice
-              title="This connection needs attention."
-              message={providerError.error}
-              onReconnect={() => connectIntegration(provider)}
+              title={problem.title}
+              message={problem.message}
+              actionLabel={problem.action === "reconnect" ? "Reconnect" : "Try again"}
+              onAction={runProblemAction}
+              link={problem.link}
             />
           )}
 
@@ -422,23 +427,26 @@ export function IntegrationPanel() {
 
           {panelState === "items" && (
             <>
-              {activeIntegration === "github" &&
-                integrationTab === "issues" &&
-                githubIssues.map((issue) => (
-                  <GitHubIssueCard key={issue.id} issue={issue} />
-                ))}
-
-              {activeIntegration === "github" &&
-                integrationTab === "prs" &&
-                githubPRs.map((pr) => <GitHubPRCard key={pr.id} pr={pr} />)}
-
-              {activeIntegration === "gmail" &&
-                gmailMessages.map((message) => (
-                  <GmailCard key={message.id} message={message} />
-                ))}
-
-              {activeIntegration === "notion" &&
-                notionPages.map((page) => <NotionCard key={page.id} page={page} />)}
+              {items.length === 0 && (
+                <p className="py-8 text-center text-xs text-muted-foreground">Nothing matches.</p>
+              )}
+              {items.map((item) => (
+                <div key={keyOf(item)} className="space-y-1.5">
+                  {renderCard(item)}
+                  <IntegrationItemActions item={item} />
+                </div>
+              ))}
+              {integrationCursors[provider] && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs"
+                  disabled={loadingMoreProvider === provider}
+                  onClick={() => loadMoreIntegrationItems(provider)}
+                >
+                  {loadingMoreProvider === provider ? "Loading..." : "Load more"}
+                </Button>
+              )}
             </>
           )}
         </div>

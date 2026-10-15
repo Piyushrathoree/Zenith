@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getToken } from "@/lib/api/client";
 import { useStore } from "@/store/useStore";
+import { format } from "date-fns";
 
 /**
  * Client side route guard.
@@ -98,8 +99,27 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (status === "authorized" && isAuthenticated) {
       void loadInitialData();
+      void useStore.getState().loadWeeklyPlan();
+      void useStore.getState().loadRecurringRules();
+      void useStore.getState().loadTodayRitual();
     }
   }, [status, isAuthenticated, loadInitialData]);
+
+  // The board is built for the day it was loaded on. If the tab stayed open past midnight,
+  // reload when the user comes back, so today is the first column and unfinished work rolls over.
+  useEffect(() => {
+    const refreshIfNewDay = () => {
+      const { plannerLoaded, plannerDateKey, loadInitialData: reload } = useStore.getState();
+      if (!plannerLoaded || !plannerDateKey) return;
+      if (plannerDateKey !== format(new Date(), "yyyy-MM-dd")) void reload();
+    };
+    window.addEventListener("focus", refreshIfNewDay);
+    document.addEventListener("visibilitychange", refreshIfNewDay);
+    return () => {
+      window.removeEventListener("focus", refreshIfNewDay);
+      document.removeEventListener("visibilitychange", refreshIfNewDay);
+    };
+  }, []);
 
   if (status === "checking") {
     return <AuthFallback label="Loading your workspace" />;

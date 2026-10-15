@@ -43,6 +43,9 @@ const envSchema = z.object({
     API_BASE_URL: z
         .string()
         .default(isProd ? PROD_API_BASE_URL : 'http://localhost:8000'),
+
+    // "false" lets you run the workers in a separate process (bun src/worker.ts) in production.
+    RUN_WORKERS: z.enum(['true', 'false']).default('true'),
 });
 
 // Will throw on startup if any required env var is missing or invalid

@@ -5,6 +5,7 @@ import { ApiError } from '../../utils/ApiError.ts';
 import { ApiResponse } from '../../utils/ApiResponse.ts';
 import { generateCode } from '../../utils/helpers.ts';
 import { EmailQueue } from '../notification/email.producer.ts';
+import { queueCalendarResync } from '../calendar/calendar.queue.ts';
 import {
     RegisterUserSchema,
     LoginUserSchema,
@@ -88,17 +89,32 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         return;
     }
 
-    const { name, avatarUrl } = req.body;
+    const { name, avatarUrl, timezone, weekStartsOn, emailPrefs, calendarReminderMinutes } = req.body;
+
+    // Only fields the caller actually sent are written, so a partial update
+    // (for example just the timezone from Settings) never blanks the others.
+    const $set: Record<string, unknown> = {};
+    if (name !== undefined) $set.name = name;
+    if (avatarUrl !== undefined) $set.avatarUrl = avatarUrl;
+    if (timezone !== undefined) $set.timezone = timezone;
+    if (weekStartsOn !== undefined) $set.weekStartsOn = weekStartsOn;
+    if (emailPrefs !== undefined) $set['emailPrefs.weeklyBacklogDigest'] = emailPrefs.weeklyBacklogDigest;
+    if (calendarReminderMinutes !== undefined) $set.calendarReminderMinutes = calendarReminderMinutes;
 
     const user = await User.findByIdAndUpdate(
         userId,
-        { name, avatarUrl },
+        { $set },
         { new: true, runValidators: true }
     ).select('-password -verificationCode -resetPasswordToken');
 
     if (!user) {
         res.status(404).json(new ApiError(404, 'User not found'));
         return;
+    }
+
+    // A new timezone or reminder time moves every synced event, so resync them in the background.
+    if (timezone !== undefined || calendarReminderMinutes !== undefined) {
+        await queueCalendarResync(userId);
     }
 
     res.status(200).json(new ApiResponse(200, user, 'User updated successfully'));

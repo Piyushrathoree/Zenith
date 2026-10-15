@@ -18,6 +18,10 @@ export interface Task {
   sourceData?: GitHubIssue | GmailMessage | NotionPage;
   externalId?: string;
   link?: string;
+  /** Backlog tasks have no day (date is ""). See Phase 2 in docs/roadmap. */
+  inBacklog?: boolean;
+  /** Set on tasks generated from a repeating task. See Phase 3 in docs/roadmap. */
+  recurringTaskId?: string;
 }
 
 export interface GitHubIssue {

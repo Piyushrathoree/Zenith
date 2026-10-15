@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { Task, Column, DailyTask, IntegrationType, GitHubIssue, GitHubPR, GmailMessage, NotionPage } from '@/types';
-import { addDays, format, startOfDay, startOfWeek } from 'date-fns';
+import { addDays, format, parseISO, startOfDay, startOfWeek } from 'date-fns';
 import { FilterTag, FilterStatus } from '@/components/dashboard/kanban/FilterDropdown';
 import { ApiRequestError } from '@/lib/api/client';
 import {
@@ -14,6 +14,7 @@ import {
     getTodaysPlan,
     updateDailyPlanner,
     updateTaskRequest,
+    runRollover,
     ServerChannel,
 } from '@/lib/api/planner';
 import {
@@ -24,6 +25,7 @@ import {
     mapToCreateServerTaskPayload,
     mapToUpdateServerTaskPayload,
     mergeServerTaskUpdate,
+    toIsoString,
 } from '@/lib/api/plannerMapping';
 import {
     ConnectedIntegration,
@@ -35,16 +37,37 @@ import {
     listConnectedIntegrations,
     listProviders,
     startProviderConnect,
+    updateIntegrationSettings as updateIntegrationSettingsRequest,
+    hideIntegrationItem as hideIntegrationItemRequest,
+    type IntegrationSettings,
+    type UniversalTask,
 } from '@/lib/api/integrations';
+import { externalIdOf, itemKey, sourceOf, taskInputFromItem, taskKey, type IntegrationItem } from '@/lib/integrationTasks';
 import { mapIntegrationItems } from '@/lib/api/integrationsMapping';
+import {
+    getCurrentWeek,
+    updateWeeklyPlan,
+    type UpdateWeeklyPlanPayload,
+    type WeeklyCurrentResponse,
+    type WeeklyReflection,
+    type WeeklyStatsDTO,
+} from '@/lib/api/weekly';
+import { getDailySummary } from '@/lib/api/rituals';
+import {
+    createRecurring,
+    listRecurring,
+    stopRecurring,
+    updateRecurring,
+    type RecurringInput,
+    type RecurringRuleDTO,
+    type RecurringUpdate,
+} from '@/lib/api/recurring';
 
-export type ViewMode = 'board' | 'calendar';
+export type ViewMode = 'board' | 'calendar' | 'day';
 
 /**
- * Weekly rituals (goals + top priorities) shown in WeeklyRitualsPanel.tsx.
- * There is no backend rituals model yet, so this slice is client-only and
- * stored in localStorage for the current calendar week. When a new week
- * starts the list is emptied so last week's goals do not carry over.
+ * A weekly goal, as shown in WeeklyRitualsPanel.tsx. Saved on the server as
+ * part of the WeeklyPlan for the current week (see lib/api/weekly.ts).
  */
 export interface WeeklyGoal {
     id: string;
@@ -53,49 +76,48 @@ export interface WeeklyGoal {
     target: number;
 }
 
-const WEEKLY_RITUALS_STORAGE_KEY = "zenith_weekly_rituals";
+// Browser only storage used before weekly planning moved to the server.
+// Read once by migrateLegacyWeeklyRituals, then removed.
+const LEGACY_WEEKLY_RITUALS_KEY = "zenith_weekly_rituals";
 
-function currentWeekKey(): string {
+/** The week key the old localStorage version used (Sunday start, browser clock). */
+function legacyWeekKey(): string {
     return format(startOfWeek(new Date()), "yyyy-MM-dd");
 }
 
-interface WeeklyRitualsSnapshot {
-    weekKey: string;
-    weeklyGoals: WeeklyGoal[];
-    weeklyPriorities: string[];
-}
-
-function emptyWeeklyRituals(): WeeklyRitualsSnapshot {
-    return {
-        weekKey: currentWeekKey(),
-        weeklyGoals: [],
-        weeklyPriorities: [],
-    };
-}
-
-function loadWeeklyRituals(): WeeklyRitualsSnapshot {
-    const fresh = emptyWeeklyRituals();
-    if (typeof window === "undefined") return fresh;
-    try {
-        const raw = window.localStorage.getItem(WEEKLY_RITUALS_STORAGE_KEY);
-        if (!raw) return fresh;
-        const parsed = JSON.parse(raw) as WeeklyRitualsSnapshot;
-        if (parsed.weekKey !== fresh.weekKey) return fresh;
-        return {
-            weekKey: parsed.weekKey,
-            weeklyGoals: Array.isArray(parsed.weeklyGoals) ? parsed.weeklyGoals : [],
-            weeklyPriorities: Array.isArray(parsed.weeklyPriorities)
-                ? parsed.weeklyPriorities
-                : [],
-        };
-    } catch {
-        return fresh;
-    }
-}
-
-function saveWeeklyRituals(snapshot: WeeklyRitualsSnapshot): void {
+/**
+ * One time upload of goals saved by the old localStorage version. Only goals
+ * from the current week are uploaded, and only when the server has nothing yet
+ * for that week. The old key is removed once the upload succeeds, or straight
+ * away when there is nothing worth uploading.
+ */
+async function migrateLegacyWeeklyRituals(
+    serverIsEmpty: boolean,
+    save: (payload: UpdateWeeklyPlanPayload) => Promise<boolean>
+): Promise<void> {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(WEEKLY_RITUALS_STORAGE_KEY, JSON.stringify(snapshot));
+    const raw = window.localStorage.getItem(LEGACY_WEEKLY_RITUALS_KEY);
+    if (!raw) return;
+
+    let legacy: { weekKey?: string; weeklyGoals?: WeeklyGoal[]; weeklyPriorities?: string[] } = {};
+    try {
+        legacy = JSON.parse(raw);
+    } catch {
+        // Unreadable old value: nothing to keep, so it is dropped below.
+    }
+
+    const goals = Array.isArray(legacy.weeklyGoals) ? legacy.weeklyGoals : [];
+    const priorities = Array.isArray(legacy.weeklyPriorities) ? legacy.weeklyPriorities : [];
+    const isCurrentWeek = legacy.weekKey === legacyWeekKey();
+    const hasContent = goals.length > 0 || priorities.length > 0;
+
+    if (!(isCurrentWeek && hasContent && serverIsEmpty)) {
+        window.localStorage.removeItem(LEGACY_WEEKLY_RITUALS_KEY);
+        return;
+    }
+
+    const saved = await save({ goals, priorities });
+    if (saved) window.localStorage.removeItem(LEGACY_WEEKLY_RITUALS_KEY);
 }
 
 export type IntegrationDetailType =
@@ -133,6 +155,8 @@ interface AppState {
     isPlannerLoading: boolean;
     plannerLoaded: boolean;
     plannerError: string | null;
+    // The day the board was last loaded for, as "yyyy-MM-dd". Used to notice a new day.
+    plannerDateKey: string;
     activeIntegration: IntegrationType;
     selectedTask: Task | null;
     showTaskModal: boolean;
@@ -155,12 +179,18 @@ interface AppState {
     connectedIntegrations: ConnectedIntegration[];
     availableProviders: ProviderInfo[];
     integrationErrors: IntegrationFetchError[];
+    // Raw items as the server sent them (the typed arrays above are derived for the cards).
+    integrationItems: UniversalTask[];
+    integrationCursors: Partial<Record<IntegrationProvider, string>>;
+    loadingMoreProvider: IntegrationProvider | null;
     isIntegrationsLoading: boolean;
     integrationsLoaded: boolean;
     integrationsError: string | null;
     isIntegrationsRefreshing: boolean;
-    integrationTab: 'issues' | 'prs';
+    integrationTab: 'issues' | 'prs' | 'reviews';
     viewMode: ViewMode;
+    // The day shown in the Day view (time boxing), as "yyyy-MM-dd".
+    dayViewDate: string;
     boardJumpDate: string | null;
     boardJumpNonce: number;
     highlightedColumnDate: string | null;
@@ -168,10 +198,26 @@ interface AppState {
     filterStatus: FilterStatus;
     selectedIntegrationDetail: IntegrationDetailType;
     showIntegrationModal: boolean;
-    // Weekly rituals - client-only, keyed to the current calendar week.
+    // Weekly planning for the current week. Saved on the server (see loadWeeklyPlan).
     weeklyWeekKey: string;
     weeklyGoals: WeeklyGoal[];
     weeklyPriorities: string[];
+    weeklyReviewNotes: string;
+    weeklyStats: WeeklyStatsDTO | null;
+    weeklyPreviousStats: WeeklyStatsDTO | null;
+    weeklyLoaded: boolean;
+    weeklyReflection: WeeklyReflection;
+    weeklyPlanningCompletedAt: string | null;
+    weeklyReviewCompletedAt: string | null;
+    // Guided daily rituals (Phase 8). Which flow is open, and today's markers.
+    dailyRitual: 'planning' | 'shutdown' | null;
+    todayRitual: { plannedAt: string | null; shutdownAt: string | null };
+    showHighlights: boolean;
+    // Backlog: tasks with no day. Listed in the Backlog panel, never on the board.
+    backlogTasks: Task[];
+    showBacklog: boolean;
+    // Repeating task templates. Each one generates tasks on the board.
+    recurringRules: RecurringRuleDTO[];
 
     // Actions
     setActiveIntegration: (integration: IntegrationType) => void;
@@ -189,8 +235,9 @@ interface AppState {
     resetFocusTimer: () => void;
     minimizeFocus: () => void;
     exitFocus: () => void;
-    setIntegrationTab: (tab: 'issues' | 'prs') => void;
+    setIntegrationTab: (tab: 'issues' | 'prs' | 'reviews') => void;
     setViewMode: (mode: ViewMode) => void;
+    setDayViewDate: (date: string) => void;
     jumpToDate: (date: string) => void;
     clearColumnHighlight: () => void;
     setFilterTags: (tags: FilterTag[]) => void;
@@ -204,6 +251,13 @@ interface AppState {
     loadIntegrations: () => Promise<void>;
     /** Re-fetches items only, bypassing the server cache, for the panel's refresh button. */
     refreshIntegrationItems: () => Promise<void>;
+    refreshIntegrationProvider: (provider: IntegrationProvider) => Promise<void>;
+    loadMoreIntegrationItems: (provider: IntegrationProvider) => Promise<void>;
+    saveIntegrationSettings: (provider: IntegrationProvider, settings: Partial<IntegrationSettings>) => Promise<void>;
+    /** One click add from the integration panel: today, tomorrow, a "yyyy-MM-dd" day, or the backlog. */
+    addIntegrationItem: (item: IntegrationItem, target: 'today' | 'tomorrow' | 'backlog' | string) => Promise<void>;
+    /** Hide an item from the panel; with `snooze`, it comes back tomorrow morning. */
+    hideIntegrationItem: (item: IntegrationItem, snooze?: boolean) => Promise<void>;
     connectIntegration: (provider: IntegrationProvider) => Promise<void>;
     disconnectIntegration: (provider: IntegrationProvider) => Promise<void>;
     addTask: (task: Omit<Task, 'id'>) => Promise<void>;
@@ -212,7 +266,24 @@ interface AppState {
     moveTask: (taskId: string, newDate: string) => Promise<void>;
     toggleDailyTask: (id: string) => Promise<void>;
     addDailyTask: (task: Omit<DailyTask, 'id'>) => Promise<void>;
-    // Weekly rituals actions - client-only, see WeeklyGoal comment above.
+    // Backlog actions. Changes are optimistic and rolled back if the save fails.
+    setShowBacklog: (show: boolean) => void;
+    setDailyRitual: (ritual: 'planning' | 'shutdown' | null) => void;
+    setShowHighlights: (show: boolean) => void;
+    loadTodayRitual: () => Promise<void>;
+    addBacklogTask: (input: { title: string; tag: Task['tag']; duration: string }) => Promise<void>;
+    sendToBacklog: (id: string) => Promise<void>;
+    scheduleFromBacklog: (id: string, date: string, time?: string) => Promise<void>;
+    // Repeating tasks. The server decides which days get tasks, so these reload from the server.
+    loadRecurringRules: () => Promise<void>;
+    createRecurringTask: (input: RecurringInput) => Promise<void>;
+    updateRecurringSeries: (id: string, input: RecurringUpdate) => Promise<void>;
+    stopRecurringSeries: (id: string) => Promise<void>;
+    reloadTasks: () => Promise<void>;
+    // Weekly planning actions. Changes are optimistic and rolled back if the save fails.
+    loadWeeklyPlan: () => Promise<void>;
+    saveWeeklyPlan: (payload: UpdateWeeklyPlanPayload) => Promise<boolean>;
+    setWeeklyReviewNotes: (notes: string) => void;
     addWeeklyGoal: (title: string) => void;
     removeWeeklyGoal: (id: string) => void;
     updateWeeklyGoalProgress: (id: string, increment: number) => void;
@@ -250,6 +321,7 @@ export const useStore = create<AppState>((set, get) => ({
     isPlannerLoading: false,
     plannerLoaded: false,
     plannerError: null,
+    plannerDateKey: '',
     activeIntegration: null,
     selectedTask: null,
     showTaskModal: false,
@@ -275,12 +347,16 @@ export const useStore = create<AppState>((set, get) => ({
     connectedIntegrations: [],
     availableProviders: [],
     integrationErrors: [],
+    integrationItems: [],
+    integrationCursors: {},
+    loadingMoreProvider: null,
     isIntegrationsLoading: false,
     integrationsLoaded: false,
     integrationsError: null,
     isIntegrationsRefreshing: false,
     integrationTab: 'issues',
     viewMode: 'board',
+    dayViewDate: todayDateKey(),
     boardJumpDate: null,
     boardJumpNonce: 0,
     highlightedColumnDate: null,
@@ -288,12 +364,29 @@ export const useStore = create<AppState>((set, get) => ({
     filterStatus: 'all',
     selectedIntegrationDetail: null,
     showIntegrationModal: false,
-    ...(() => {
-        const { weekKey, weeklyGoals, weeklyPriorities } = loadWeeklyRituals();
-        return { weeklyWeekKey: weekKey, weeklyGoals, weeklyPriorities };
-    })(),
+    // Weekly planning is filled by loadWeeklyPlan() once the user is authenticated.
+    weeklyWeekKey: '',
+    weeklyGoals: [],
+    weeklyPriorities: [],
+    weeklyReviewNotes: '',
+    weeklyStats: null,
+    weeklyPreviousStats: null,
+    weeklyLoaded: false,
+    backlogTasks: [],
+    showBacklog: false,
+    weeklyReflection: { wentWell: '', didnt: '', change: '' },
+    weeklyPlanningCompletedAt: null,
+    weeklyReviewCompletedAt: null,
+    dailyRitual: null,
+    todayRitual: { plannedAt: null, shutdownAt: null },
+    showHighlights: false,
+    recurringRules: [],
 
-    setActiveIntegration: (integration) => set({ activeIntegration: integration }),
+    // Only one docked side panel at a time: opening an integration closes the backlog.
+    setActiveIntegration: (integration) => set({
+        activeIntegration: integration,
+        ...(integration ? { showBacklog: false, showHighlights: false } : {}),
+    }),
     setSelectedTask: (task) => set({ selectedTask: task }),
     setShowTaskModal: (show) => set({ showTaskModal: show }),
     setShowCreateModal: (show, date) =>
@@ -302,25 +395,14 @@ export const useStore = create<AppState>((set, get) => ({
             createTaskDate: show ? date ?? format(new Date(), "yyyy-MM-dd") : null,
         }),
     setShowDailyPlanner: (show) => set({ showDailyPlanner: show }),
-    setShowWeeklyRituals: (show, type) => set((state) => {
-        const weekKey = currentWeekKey();
-        const weekChanged = state.weeklyWeekKey !== weekKey;
-        const next = {
+    setShowWeeklyRituals: (show, type) => {
+        set((state) => ({
             showWeeklyRituals: show,
             weeklyRitualType: type || state.weeklyRitualType,
-            ...(weekChanged
-                ? { weeklyWeekKey: weekKey, weeklyGoals: [], weeklyPriorities: [] }
-                : {}),
-        };
-        if (weekChanged) {
-            saveWeeklyRituals({
-                weekKey,
-                weeklyGoals: [],
-                weeklyPriorities: [],
-            });
-        }
-        return next;
-    }),
+        }));
+        // Refresh from the server each time the panel opens, so the stats are current.
+        if (show) void get().loadWeeklyPlan();
+    },
     setFocusMode: (focus) => set((state) => ({
         focusMode: focus,
         focusMinimized: focus ? false : state.focusRunning,
@@ -358,6 +440,7 @@ export const useStore = create<AppState>((set, get) => ({
     })),
     setIntegrationTab: (tab) => set({ integrationTab: tab }),
     setViewMode: (mode) => set({ viewMode: mode }),
+    setDayViewDate: (date) => set({ dayViewDate: date }),
     jumpToDate: (date) =>
         set((state) => ({
             viewMode: 'board',
@@ -380,6 +463,20 @@ export const useStore = create<AppState>((set, get) => ({
         set({ isPlannerLoading: true, plannerError: null });
 
         try {
+            // Carry unfinished tasks forward before reading the board. Non fatal: the scheduled
+            // job rolls over later anyway, so a failure here only means a slightly stale board.
+            try {
+                const rollover = await runRollover();
+                if (rollover.rolledCount > 0) {
+                    toast(`Moved ${rollover.rolledCount} unfinished ${rollover.rolledCount === 1 ? 'task' : 'tasks'} to today`);
+                }
+                if (rollover.backlogCount > 0) {
+                    toast(`${rollover.backlogCount} ${rollover.backlogCount === 1 ? 'task' : 'tasks'} from last week moved to your backlog`);
+                }
+            } catch {
+                // Non fatal, see above.
+            }
+
             // Make sure the three tag channels exist server side. Failures here
             // are non fatal - the board still works purely off `due`/`status`
             // even if the Channel documents themselves could not be created.
@@ -418,8 +515,13 @@ export const useStore = create<AppState>((set, get) => ({
                 dailyTasks = [];
             }
 
+            const mappedTasks = serverTasks.map(mapToClientTask);
             set({
-                tasks: serverTasks.map(mapToClientTask),
+                tasks: mappedTasks.filter((task) => !task.inBacklog),
+                backlogTasks: mappedTasks.filter((task) => task.inBacklog),
+                // Rebuilt on every load, so a tab opened yesterday starts on today.
+                columns: generateColumns(),
+                plannerDateKey: todayDateKey(),
                 dailyTasks,
                 channels,
                 isPlannerLoading: false,
@@ -497,6 +599,8 @@ export const useStore = create<AppState>((set, get) => ({
             : { githubIssues: [], githubPRs: [], gmailMessages: [], notionPages: [] };
 
         set({
+            integrationItems: itemsResult.status === 'fulfilled' ? itemsResult.value.items : [],
+            integrationCursors: itemsResult.status === 'fulfilled' ? itemsResult.value.nextCursors ?? {} : {},
             availableProviders: providersResult.status === 'fulfilled' ? providersResult.value : [],
             connectedIntegrations: connectedResult.status === 'fulfilled' ? connectedResult.value : [],
             integrationErrors: itemsResult.status === 'fulfilled' ? itemsResult.value.errors : [],
@@ -517,6 +621,8 @@ export const useStore = create<AppState>((set, get) => ({
             const itemsResponse = await getIntegrationItems(true);
             const mapped = mapIntegrationItems(itemsResponse.items);
             set({
+                integrationItems: itemsResponse.items,
+                integrationCursors: itemsResponse.nextCursors ?? {},
                 githubIssues: mapped.githubIssues,
                 githubPRs: mapped.githubPRs,
                 gmailMessages: mapped.gmailMessages,
@@ -551,6 +657,7 @@ export const useStore = create<AppState>((set, get) => ({
 
         set((state) => ({
             connectedIntegrations: state.connectedIntegrations.filter((c) => c.provider !== provider),
+            integrationItems: state.integrationItems.filter((item) => item.provider !== provider),
             githubIssues: provider === 'github' ? [] : state.githubIssues,
             githubPRs: provider === 'github' ? [] : state.githubPRs,
             gmailMessages: provider === 'gmail' ? [] : state.gmailMessages,
@@ -569,6 +676,135 @@ export const useStore = create<AppState>((set, get) => ({
                 notionPages: previousNotionPages,
             });
             toast.error(getErrorMessage(error, 'Could not disconnect the integration'));
+        }
+    },
+
+    refreshIntegrationProvider: async (provider) => {
+        set({ isIntegrationsRefreshing: true });
+        try {
+            const [response, connected] = await Promise.all([
+                getIntegrationItems(true, { provider }),
+                listConnectedIntegrations().catch(() => get().connectedIntegrations),
+            ]);
+            const raw = [...get().integrationItems.filter((item) => item.provider !== provider), ...response.items];
+            set({
+                ...mapIntegrationItems(raw),
+                integrationItems: raw,
+                integrationErrors: [
+                    ...get().integrationErrors.filter((e) => e.provider !== provider),
+                    ...response.errors,
+                ],
+                integrationCursors: { ...get().integrationCursors, [provider]: response.nextCursors?.[provider] },
+                connectedIntegrations: connected,
+            });
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not refresh this integration'));
+        } finally {
+            set({ isIntegrationsRefreshing: false });
+        }
+    },
+
+    loadMoreIntegrationItems: async (provider) => {
+        const cursor = get().integrationCursors[provider];
+        if (!cursor || get().loadingMoreProvider) return;
+        set({ loadingMoreProvider: provider });
+        try {
+            const response = await getIntegrationItems(false, { provider, cursor });
+            const seen = new Set(get().integrationItems.map((item) => `${item.provider}:${item.externalId}`));
+            const raw = [
+                ...get().integrationItems,
+                ...response.items.filter((item) => !seen.has(`${item.provider}:${item.externalId}`)),
+            ];
+            set({
+                ...mapIntegrationItems(raw),
+                integrationItems: raw,
+                integrationCursors: { ...get().integrationCursors, [provider]: response.nextCursors?.[provider] },
+            });
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not load more items'));
+        } finally {
+            set({ loadingMoreProvider: null });
+        }
+    },
+
+    saveIntegrationSettings: async (provider, settings) => {
+        try {
+            const updated = await updateIntegrationSettingsRequest(provider, settings);
+            set((state) => ({
+                connectedIntegrations: state.connectedIntegrations.map((entry) =>
+                    entry.provider === provider ? { ...entry, ...updated } : entry
+                ),
+            }));
+            await get().refreshIntegrationProvider(provider);
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not save these settings'));
+        }
+    },
+
+    hideIntegrationItem: async (item, snooze) => {
+        const provider = sourceOf(item);
+        const externalId = externalIdOf(item);
+        const previous = get().integrationItems;
+        const remaining = previous.filter((raw) => !(raw.provider === provider && raw.externalId === externalId));
+        set({ ...mapIntegrationItems(remaining), integrationItems: remaining });
+
+        // Snooze until 8:00 tomorrow, local time.
+        const until = snooze
+            ? (() => {
+                const morning = addDays(startOfDay(new Date()), 1);
+                morning.setHours(8);
+                return morning.toISOString();
+            })()
+            : undefined;
+        try {
+            await hideIntegrationItemRequest(provider, externalId, until);
+            toast(snooze ? 'Snoozed until tomorrow' : 'Hidden from this list');
+        } catch (error) {
+            set({ ...mapIntegrationItems(previous), integrationItems: previous });
+            toast.error(getErrorMessage(error, 'Could not hide that item'));
+        }
+    },
+
+    addIntegrationItem: async (item, target) => {
+        // Never plan the same item twice: point at the existing task instead.
+        const key = itemKey(item);
+        const existing = [...get().tasks, ...get().backlogTasks].find((task) => taskKey(task) === key);
+        if (existing) {
+            toast(existing.inBacklog
+                ? 'Already in your backlog'
+                : `Already planned for ${format(parseISO(existing.date), 'EEE, MMM d')}`);
+            return;
+        }
+
+        const date = target === 'backlog'
+            ? ''
+            : target === 'today'
+                ? todayDateKey()
+                : target === 'tomorrow'
+                    ? format(addDays(new Date(), 1), 'yyyy-MM-dd')
+                    : target;
+        const input = taskInputFromItem(item, date);
+
+        if (date) {
+            await get().addTask(input);
+            toast.success(target === 'today' ? 'Added to today' : `Added to ${format(parseISO(date), 'EEE, MMM d')}`);
+            return;
+        }
+
+        // Backlog: same optimistic pattern as addBacklogTask, keeping the provenance fields.
+        const tempId = `temp-${Date.now()}`;
+        set((state) => ({ backlogTasks: [{ ...input, id: tempId }, ...state.backlogTasks] }));
+        const { channel, payload } = mapToCreateServerTaskPayload(input);
+        try {
+            const created = await createTask(channel, payload);
+            const mapped = { ...mapToClientTask(created), sourceData: input.sourceData };
+            set((state) => ({
+                backlogTasks: state.backlogTasks.map((task) => (task.id === tempId ? mapped : task)),
+            }));
+            toast.success('Added to your backlog');
+        } catch (error) {
+            set((state) => ({ backlogTasks: state.backlogTasks.filter((task) => task.id !== tempId) }));
+            toast.error(getErrorMessage(error, 'Could not add to your backlog'));
         }
     },
 
@@ -602,6 +838,43 @@ export const useStore = create<AppState>((set, get) => ({
     },
 
     updateTask: async (id, updates) => {
+        // Backlog tasks live in backlogTasks. Giving one a day schedules it onto the board.
+        if (get().backlogTasks.some((task) => task.id === id)) {
+            if (updates.date) {
+                await get().scheduleFromBacklog(id, updates.date, updates.time);
+                return;
+            }
+
+            const previousBacklog = get().backlogTasks;
+            const previousSelected = get().selectedTask;
+            set((state) => ({
+                backlogTasks: state.backlogTasks.map((task) =>
+                    task.id === id ? { ...task, ...updates } : task
+                ),
+                selectedTask:
+                    state.selectedTask?.id === id
+                        ? { ...state.selectedTask, ...updates }
+                        : state.selectedTask,
+            }));
+
+            if (isTempId(id)) return;
+            const backlogPayload = mapToUpdateServerTaskPayload(updates);
+            if (Object.keys(backlogPayload).length === 0) return;
+
+            try {
+                const updated = await updateTaskRequest(id, backlogPayload);
+                set((state) => ({
+                    backlogTasks: state.backlogTasks.map((task) =>
+                        task.id === id ? mergeServerTaskUpdate(task, updated) : task
+                    ),
+                }));
+            } catch (error) {
+                set({ backlogTasks: previousBacklog, selectedTask: previousSelected });
+                toast.error(getErrorMessage(error, 'Could not update task'));
+            }
+            return;
+        }
+
         const previousTasks = get().tasks;
         const previousSelected = get().selectedTask;
         set((state) => ({
@@ -651,6 +924,33 @@ export const useStore = create<AppState>((set, get) => ({
     },
 
     deleteTask: async (id) => {
+        if (get().backlogTasks.some((task) => task.id === id)) {
+            const previousBacklog = get().backlogTasks;
+            const previousSelected = get().selectedTask;
+            const previousShowModal = get().showTaskModal;
+            set((state) => ({
+                backlogTasks: state.backlogTasks.filter((task) => task.id !== id),
+                ...(state.selectedTask?.id === id
+                    ? { selectedTask: null, showTaskModal: false }
+                    : {}),
+            }));
+
+            if (isTempId(id)) return;
+
+            try {
+                await deleteTaskRequest(id);
+                toast.success('Task deleted');
+            } catch (error) {
+                set({
+                    backlogTasks: previousBacklog,
+                    selectedTask: previousSelected,
+                    showTaskModal: previousShowModal,
+                });
+                toast.error(getErrorMessage(error, 'Could not delete task'));
+            }
+            return;
+        }
+
         const previousTasks = get().tasks;
         const previousSelected = get().selectedTask;
         const previousShowModal = get().showTaskModal;
@@ -673,6 +973,169 @@ export const useStore = create<AppState>((set, get) => ({
                 showTaskModal: previousShowModal,
             });
             toast.error(getErrorMessage(error, 'Could not delete task'));
+        }
+    },
+
+    setShowBacklog: (show) => set({
+        showBacklog: show,
+        // Only one docked side panel at a time: opening the backlog closes the others.
+        ...(show ? { activeIntegration: null, showHighlights: false } : {}),
+    }),
+
+    setDailyRitual: (ritual) => set({ dailyRitual: ritual }),
+
+    setShowHighlights: (show) => set({
+        showHighlights: show,
+        ...(show ? { activeIntegration: null, showBacklog: false } : {}),
+    }),
+
+    loadTodayRitual: async () => {
+        try {
+            const summary = await getDailySummary(todayDateKey());
+            set({ todayRitual: { plannedAt: summary.plannedAt, shutdownAt: summary.shutdownAt } });
+        } catch {
+            // Non fatal: the sidebar just shows no check marks.
+        }
+    },
+
+    addBacklogTask: async ({ title, tag, duration }) => {
+        const tempId = `temp-${Date.now()}`;
+        const optimisticTask: Task = {
+            id: tempId,
+            title,
+            tag,
+            duration,
+            date: '',
+            completed: false,
+            inBacklog: true,
+        };
+        set((state) => ({ backlogTasks: [optimisticTask, ...state.backlogTasks] }));
+
+        try {
+            const created = await createTask(tag, { taskDescription: title, duration, inBacklog: true });
+            const mapped = mapToClientTask(created);
+            set((state) => ({
+                backlogTasks: state.backlogTasks.map((task) => (task.id === tempId ? mapped : task)),
+            }));
+        } catch (error) {
+            set((state) => ({ backlogTasks: state.backlogTasks.filter((task) => task.id !== tempId) }));
+            toast.error(getErrorMessage(error, 'Could not add to backlog'));
+        }
+    },
+
+    sendToBacklog: async (id) => {
+        const task = get().tasks.find((item) => item.id === id);
+        if (!task) return;
+
+        const previousTasks = get().tasks;
+        const previousBacklog = get().backlogTasks;
+        const previousSelected = get().selectedTask;
+        const previousShowModal = get().showTaskModal;
+        set((state) => ({
+            tasks: state.tasks.filter((item) => item.id !== id),
+            backlogTasks: [{ ...task, date: '', time: undefined, inBacklog: true }, ...state.backlogTasks],
+            ...(state.selectedTask?.id === id ? { selectedTask: null, showTaskModal: false } : {}),
+        }));
+
+        if (isTempId(id)) return;
+
+        try {
+            await updateTaskRequest(id, { inBacklog: true });
+        } catch (error) {
+            set({
+                tasks: previousTasks,
+                backlogTasks: previousBacklog,
+                selectedTask: previousSelected,
+                showTaskModal: previousShowModal,
+            });
+            toast.error(getErrorMessage(error, 'Could not move task to backlog'));
+        }
+    },
+
+    scheduleFromBacklog: async (id, date, time) => {
+        const task = get().backlogTasks.find((item) => item.id === id);
+        if (!task) return;
+
+        const due = toIsoString(date);
+        if (!due) {
+            toast.error('That day is not valid');
+            return;
+        }
+
+        const previousTasks = get().tasks;
+        const previousBacklog = get().backlogTasks;
+        set((state) => ({
+            backlogTasks: state.backlogTasks.filter((item) => item.id !== id),
+            tasks: [...state.tasks, { ...task, date, time: time || undefined, inBacklog: false }],
+        }));
+
+        if (isTempId(id)) return;
+
+        try {
+            const updated = await updateTaskRequest(id, {
+                inBacklog: false,
+                due,
+                ...(time ? { startTime: time } : {}),
+            });
+            set((state) => ({
+                tasks: state.tasks.map((item) =>
+                    item.id === id ? mergeServerTaskUpdate(item, updated) : item
+                ),
+            }));
+        } catch (error) {
+            set({ tasks: previousTasks, backlogTasks: previousBacklog });
+            toast.error(getErrorMessage(error, 'Could not schedule task'));
+        }
+    },
+
+    /** Re-reads every task from the server and splits out the backlog. */
+    reloadTasks: async () => {
+        const mapped = (await getAllTasks()).map(mapToClientTask);
+        set({
+            tasks: mapped.filter((task) => !task.inBacklog),
+            backlogTasks: mapped.filter((task) => task.inBacklog),
+        });
+    },
+
+    loadRecurringRules: async () => {
+        try {
+            set({ recurringRules: await listRecurring() });
+        } catch {
+            // Non fatal: the board still works, the repeat section just has nothing to show.
+        }
+    },
+
+    createRecurringTask: async (input) => {
+        try {
+            const { createdCount } = await createRecurring(input);
+            await Promise.all([get().loadRecurringRules(), get().reloadTasks()]);
+            toast.success(
+                createdCount > 0
+                    ? `Repeating task created, ${createdCount} days scheduled`
+                    : 'Repeating task created'
+            );
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not create the repeating task'));
+        }
+    },
+
+    updateRecurringSeries: async (id, input) => {
+        try {
+            await updateRecurring(id, input);
+            await Promise.all([get().loadRecurringRules(), get().reloadTasks()]);
+            toast.success('Series updated');
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not update the series'));
+        }
+    },
+
+    stopRecurringSeries: async (id) => {
+        try {
+            await stopRecurring(id);
+            await Promise.all([get().loadRecurringRules(), get().reloadTasks()]);
+            toast.success('Stopped repeating');
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not stop the series'));
         }
     },
 
@@ -733,62 +1196,94 @@ export const useStore = create<AppState>((set, get) => ({
         }
     },
 
-    addWeeklyGoal: (title) => set((state) => {
+    loadWeeklyPlan: async () => {
+        let data: WeeklyCurrentResponse;
+        try {
+            data = await getCurrentWeek();
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Could not load your weekly plan'));
+            return;
+        }
+
+        set({
+            weeklyWeekKey: data.weekStart,
+            weeklyGoals: data.plan.goals,
+            weeklyPriorities: data.plan.priorities,
+            weeklyReviewNotes: data.plan.reviewNotes,
+            weeklyReflection: data.plan.reflection ?? { wentWell: '', didnt: '', change: '' },
+            weeklyPlanningCompletedAt: data.plan.planningCompletedAt,
+            weeklyReviewCompletedAt: data.plan.reviewCompletedAt,
+            weeklyStats: data.stats,
+            weeklyPreviousStats: data.previousStats,
+            weeklyLoaded: true,
+        });
+
+        const serverIsEmpty = data.plan.goals.length === 0 && data.plan.priorities.length === 0;
+        await migrateLegacyWeeklyRituals(serverIsEmpty, (payload) => get().saveWeeklyPlan(payload));
+    },
+
+    saveWeeklyPlan: async (payload) => {
+        const { weeklyWeekKey, weeklyGoals, weeklyPriorities, weeklyReviewNotes } = get();
+        if (!weeklyWeekKey) {
+            toast('Your weekly plan is still loading, try again in a moment');
+            return false;
+        }
+
+        const previous = { weeklyGoals, weeklyPriorities, weeklyReviewNotes };
+        set({
+            weeklyGoals: payload.goals ?? weeklyGoals,
+            weeklyPriorities: payload.priorities ?? weeklyPriorities,
+            weeklyReviewNotes: payload.reviewNotes ?? weeklyReviewNotes,
+        });
+
+        try {
+            const saved = await updateWeeklyPlan(weeklyWeekKey, payload);
+            set({
+                weeklyReflection: saved.reflection ?? get().weeklyReflection,
+                weeklyPlanningCompletedAt: saved.planningCompletedAt,
+                weeklyReviewCompletedAt: saved.reviewCompletedAt,
+            });
+            return true;
+        } catch (error) {
+            set(previous);
+            toast.error(getErrorMessage(error, 'Could not save your weekly plan'));
+            return false;
+        }
+    },
+
+    setWeeklyReviewNotes: (notes) => set({ weeklyReviewNotes: notes }),
+
+    addWeeklyGoal: (title) => {
         const weeklyGoals = [
-            ...state.weeklyGoals,
+            ...get().weeklyGoals,
             { id: `${Date.now()}`, title: title.trim(), progress: 0, target: 7 },
         ];
-        saveWeeklyRituals({
-            weekKey: state.weeklyWeekKey,
-            weeklyGoals,
-            weeklyPriorities: state.weeklyPriorities,
-        });
-        return { weeklyGoals };
-    }),
+        void get().saveWeeklyPlan({ goals: weeklyGoals });
+    },
 
-    removeWeeklyGoal: (id) => set((state) => {
-        const weeklyGoals = state.weeklyGoals.filter((goal) => goal.id !== id);
-        saveWeeklyRituals({
-            weekKey: state.weeklyWeekKey,
-            weeklyGoals,
-            weeklyPriorities: state.weeklyPriorities,
-        });
-        return { weeklyGoals };
-    }),
+    removeWeeklyGoal: (id) => {
+        const weeklyGoals = get().weeklyGoals.filter((goal) => goal.id !== id);
+        void get().saveWeeklyPlan({ goals: weeklyGoals });
+    },
 
-    updateWeeklyGoalProgress: (id, increment) => set((state) => {
-        const weeklyGoals = state.weeklyGoals.map((goal) =>
+    updateWeeklyGoalProgress: (id, increment) => {
+        const weeklyGoals = get().weeklyGoals.map((goal) =>
             goal.id === id
                 ? { ...goal, progress: Math.max(0, Math.min(goal.target, goal.progress + increment)) }
                 : goal
         );
-        saveWeeklyRituals({
-            weekKey: state.weeklyWeekKey,
-            weeklyGoals,
-            weeklyPriorities: state.weeklyPriorities,
-        });
-        return { weeklyGoals };
-    }),
+        void get().saveWeeklyPlan({ goals: weeklyGoals });
+    },
 
-    addWeeklyPriority: (text) => set((state) => {
-        const weeklyPriorities = [...state.weeklyPriorities, text.trim()];
-        saveWeeklyRituals({
-            weekKey: state.weeklyWeekKey,
-            weeklyGoals: state.weeklyGoals,
-            weeklyPriorities,
-        });
-        return { weeklyPriorities };
-    }),
+    addWeeklyPriority: (text) => {
+        const weeklyPriorities = [...get().weeklyPriorities, text.trim()];
+        void get().saveWeeklyPlan({ priorities: weeklyPriorities });
+    },
 
-    removeWeeklyPriority: (index) => set((state) => {
-        const weeklyPriorities = state.weeklyPriorities.filter((_, i) => i !== index);
-        saveWeeklyRituals({
-            weekKey: state.weeklyWeekKey,
-            weeklyGoals: state.weeklyGoals,
-            weeklyPriorities,
-        });
-        return { weeklyPriorities };
-    }),
+    removeWeeklyPriority: (index) => {
+        const weeklyPriorities = get().weeklyPriorities.filter((_, i) => i !== index);
+        void get().saveWeeklyPlan({ priorities: weeklyPriorities });
+    },
 
     getFilteredTasks: () => {
         const { tasks, filterTags, filterStatus } = get();
