@@ -1,16 +1,47 @@
+import { useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import { useDraggableScroll } from "@/hooks/useDraggableScroll";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { CalendarView } from "./CalendarView";
 import { KanbanHeader } from "./KanbanHeader";
 import { KanbanColumn } from "./KanbanColumn";
 
 export function KanbanBoard() {
-  const { columns, getFilteredTasks, viewMode } = useApp();
-  // Using the hook's ref instead of creating a new one
+  const {
+    columns,
+    getFilteredTasks,
+    viewMode,
+    boardJumpDate,
+    boardJumpNonce,
+    highlightedColumnDate,
+    clearColumnHighlight,
+  } = useApp();
   const { ref: scrollRef, events } = useDraggableScroll<HTMLDivElement>();
 
   const filteredTasks = getFilteredTasks();
+
+  useEffect(() => {
+    if (!boardJumpNonce || !boardJumpDate || viewMode !== "board") return;
+
+    const timer = window.setTimeout(() => {
+      const target = scrollRef.current?.querySelector(
+        `[data-date="${boardJumpDate}"]`
+      );
+      target?.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    }, 40);
+
+    return () => window.clearTimeout(timer);
+  }, [boardJumpNonce, boardJumpDate, viewMode, scrollRef]);
+
+  useEffect(() => {
+    if (!highlightedColumnDate) return;
+    const timer = window.setTimeout(() => clearColumnHighlight(), 1400);
+    return () => window.clearTimeout(timer);
+  }, [highlightedColumnDate, clearColumnHighlight]);
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -34,6 +65,7 @@ export function KanbanBoard() {
                   key={column.id}
                   column={column}
                   tasks={filteredTasks}
+                  highlighted={highlightedColumnDate === column.id}
                 />
               ))}
             </div>

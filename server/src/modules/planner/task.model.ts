@@ -14,6 +14,7 @@ export interface ITask extends Document {
     notes?: string;
     duration?: string;   // planned duration, e.g. "1:00" — kept as a string to match the client
     startTime?: string;  // optional "HH:mm" time of day the task is scheduled to start
+    subtasks: { id: string; title: string; completed: boolean }[];
     // Provenance: records where a task originated when it was created from an integration.
     source?: 'github' | 'gmail' | 'notion';
     externalId?: string;
@@ -34,6 +35,15 @@ const taskSchema = new Schema<ITask>({
     notes: { type: String },
     duration: { type: String },
     startTime: { type: String },
+    subtasks: {
+        type: [{
+            _id: false,
+            id: { type: String, required: true },
+            title: { type: String, required: true },
+            completed: { type: Boolean, default: false },
+        }],
+        default: [],
+    },
     // Provenance: records where a task originated when it was created from an integration.
     source: { type: String, enum: ['github', 'gmail', 'notion'] },
     externalId: { type: String },

@@ -137,7 +137,7 @@ interface AppState {
     selectedTask: Task | null;
     showTaskModal: boolean;
     showCreateModal: boolean;
-    showTodayPanel: boolean;
+    createTaskDate: string | null;
     showDailyPlanner: boolean;
     showWeeklyRituals: boolean;
     weeklyRitualType: 'planning' | 'review';
@@ -161,6 +161,9 @@ interface AppState {
     isIntegrationsRefreshing: boolean;
     integrationTab: 'issues' | 'prs';
     viewMode: ViewMode;
+    boardJumpDate: string | null;
+    boardJumpNonce: number;
+    highlightedColumnDate: string | null;
     filterTags: FilterTag[];
     filterStatus: FilterStatus;
     selectedIntegrationDetail: IntegrationDetailType;
@@ -174,8 +177,7 @@ interface AppState {
     setActiveIntegration: (integration: IntegrationType) => void;
     setSelectedTask: (task: Task | null) => void;
     setShowTaskModal: (show: boolean) => void;
-    setShowCreateModal: (show: boolean) => void;
-    setShowTodayPanel: (show: boolean) => void;
+    setShowCreateModal: (show: boolean, date?: string) => void;
     setShowDailyPlanner: (show: boolean) => void;
     setShowWeeklyRituals: (show: boolean, type?: 'planning' | 'review') => void;
     setFocusMode: (focus: boolean) => void;
@@ -189,6 +191,8 @@ interface AppState {
     exitFocus: () => void;
     setIntegrationTab: (tab: 'issues' | 'prs') => void;
     setViewMode: (mode: ViewMode) => void;
+    jumpToDate: (date: string) => void;
+    clearColumnHighlight: () => void;
     setFilterTags: (tags: FilterTag[]) => void;
     setFilterStatus: (status: FilterStatus) => void;
     setSelectedIntegrationDetail: (detail: IntegrationDetailType) => void;
@@ -250,7 +254,7 @@ export const useStore = create<AppState>((set, get) => ({
     selectedTask: null,
     showTaskModal: false,
     showCreateModal: false,
-    showTodayPanel: false,
+    createTaskDate: null,
     showDailyPlanner: false,
     showWeeklyRituals: false,
     weeklyRitualType: 'planning',
@@ -277,6 +281,9 @@ export const useStore = create<AppState>((set, get) => ({
     isIntegrationsRefreshing: false,
     integrationTab: 'issues',
     viewMode: 'board',
+    boardJumpDate: null,
+    boardJumpNonce: 0,
+    highlightedColumnDate: null,
     filterTags: ['all'],
     filterStatus: 'all',
     selectedIntegrationDetail: null,
@@ -286,8 +293,11 @@ export const useStore = create<AppState>((set, get) => ({
     setActiveIntegration: (integration) => set({ activeIntegration: integration }),
     setSelectedTask: (task) => set({ selectedTask: task }),
     setShowTaskModal: (show) => set({ showTaskModal: show }),
-    setShowCreateModal: (show) => set({ showCreateModal: show }),
-    setShowTodayPanel: (show) => set({ showTodayPanel: show }),
+    setShowCreateModal: (show, date) =>
+        set({
+            showCreateModal: show,
+            createTaskDate: show ? date ?? format(new Date(), "yyyy-MM-dd") : null,
+        }),
     setShowDailyPlanner: (show) => set({ showDailyPlanner: show }),
     setShowWeeklyRituals: (show, type) => set((state) => {
         const weekKey = currentWeekKey();
@@ -345,6 +355,14 @@ export const useStore = create<AppState>((set, get) => ({
     })),
     setIntegrationTab: (tab) => set({ integrationTab: tab }),
     setViewMode: (mode) => set({ viewMode: mode }),
+    jumpToDate: (date) =>
+        set((state) => ({
+            viewMode: 'board',
+            boardJumpDate: date,
+            boardJumpNonce: state.boardJumpNonce + 1,
+            highlightedColumnDate: date,
+        })),
+    clearColumnHighlight: () => set({ highlightedColumnDate: null }),
     setFilterTags: (tags) => set({ filterTags: tags }),
     setFilterStatus: (status) => set({ filterStatus: status }),
     setSelectedIntegrationDetail: (detail) => set({ selectedIntegrationDetail: detail }),
@@ -582,10 +600,15 @@ export const useStore = create<AppState>((set, get) => ({
 
     updateTask: async (id, updates) => {
         const previousTasks = get().tasks;
+        const previousSelected = get().selectedTask;
         set((state) => ({
             tasks: state.tasks.map((task) =>
                 task.id === id ? { ...task, ...updates } : task
-            )
+            ),
+            selectedTask:
+                state.selectedTask?.id === id
+                    ? { ...state.selectedTask, ...updates }
+                    : state.selectedTask,
         }));
 
         // Optimistic rows still waiting on their create request cannot be
@@ -605,29 +628,47 @@ export const useStore = create<AppState>((set, get) => ({
 
         try {
             const updated = await updateTaskRequest(id, payload);
-            set((state) => ({
-                tasks: state.tasks.map((task) =>
-                    task.id === id ? mergeServerTaskUpdate(task, updated) : task
-                ),
-            }));
+            set((state) => {
+                const merged = mergeServerTaskUpdate(
+                    state.tasks.find((task) => task.id === id) ?? previousTasks.find((task) => task.id === id)!,
+                    updated
+                );
+                return {
+                    tasks: state.tasks.map((task) =>
+                        task.id === id ? merged : task
+                    ),
+                    selectedTask:
+                        state.selectedTask?.id === id ? merged : state.selectedTask,
+                };
+            });
         } catch (error) {
-            set({ tasks: previousTasks });
+            set({ tasks: previousTasks, selectedTask: previousSelected });
             toast.error(getErrorMessage(error, 'Could not update task'));
         }
     },
 
     deleteTask: async (id) => {
         const previousTasks = get().tasks;
+        const previousSelected = get().selectedTask;
+        const previousShowModal = get().showTaskModal;
         set((state) => ({
-            tasks: state.tasks.filter(task => task.id !== id)
+            tasks: state.tasks.filter(task => task.id !== id),
+            ...(state.selectedTask?.id === id
+                ? { selectedTask: null, showTaskModal: false }
+                : {}),
         }));
 
         if (isTempId(id)) return;
 
         try {
             await deleteTaskRequest(id);
+            toast.success('Task deleted');
         } catch (error) {
-            set({ tasks: previousTasks });
+            set({
+                tasks: previousTasks,
+                selectedTask: previousSelected,
+                showTaskModal: previousShowModal,
+            });
             toast.error(getErrorMessage(error, 'Could not delete task'));
         }
     },

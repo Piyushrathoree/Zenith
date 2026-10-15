@@ -25,14 +25,8 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 export function KanbanHeader() {
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
-  const {
-    viewMode,
-    setViewMode,
-    filterTags,
-    setFilterTags,
-    filterStatus,
-    setFilterStatus,
-  } = useApp();
+  const { viewMode, setViewMode, filterTags, setFilterTags, filterStatus, setFilterStatus, jumpToDate } =
+    useApp();
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const handleResetFilters = () => {
@@ -40,18 +34,9 @@ export function KanbanHeader() {
     setFilterStatus("all");
   };
 
-  // There is no store method exposed to jump the board to an arbitrary date
-  // (and useStore.ts is out of scope for this change), and KanbanColumn.tsx
-  // does not render a per-column date attribute either, so the best we can
-  // do without touching either file is a best-effort scroll to a matching
-  // "data-date" element if one ever appears, then close the popover either
-  // way. Follow-up: expose a jumpToDate/scrollToColumn helper from the store
-  // and stamp each column with data-date to make this actually work.
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
-      const key = format(date, "yyyy-MM-dd");
-      const target = document.querySelector(`[data-date="${key}"]`);
-      target?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      jumpToDate(format(date, "yyyy-MM-dd"));
     }
     setIsDatePickerOpen(false);
   };

@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { Types } from 'mongoose';
 import { PLAN_LIMITS } from '../config/planLimits.ts';
 import { ApiError } from '../utils/ApiError.ts';
 import { Task } from '../modules/planner/task.model.ts';
@@ -32,13 +33,13 @@ export const gateIntegrations = (req: Request, res: Response, next: NextFunction
 };
 
 /**
- * gateTaskLimit — prevents free users from creating more than 4 tasks.
+ * gateTaskLimit — prevents free users from putting more than 4 tasks on one day.
  *
- * Applied before createTask only.
- * Counts the user's current tasks in DB before allowing the create.
+ * Applied on create, and on update when the request moves a task (`due`).
+ * Counts tasks whose `due` date falls on that same UTC calendar day.
  *
- * Free user response (when at/over limit):
- *   403 "Free plan is limited to 4 tasks — upgrade to Pro for unlimited tasks"
+ * Free user response (when that day is full):
+ *   403 "Free plan is limited to 4 tasks a day. Upgrade to Pro for unlimited tasks."
  */
 export const gateTaskLimit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const plan = getEffectivePlan(req);
@@ -49,12 +50,42 @@ export const gateTaskLimit = async (req: Request, res: Response, next: NextFunct
         return;
     }
 
+    const dueRaw = req.body?.due;
+    if (req.method !== 'POST' && dueRaw === undefined) {
+        next();
+        return;
+    }
+
     try {
-        const taskCount = await Task.countDocuments({ userId: req.userId });
+        const target = dueRaw ? new Date(dueRaw) : new Date();
+        if (Number.isNaN(target.getTime())) {
+            res.status(400).json(new ApiError(400, 'due must be a valid date'));
+            return;
+        }
+
+        const start = new Date(Date.UTC(
+            target.getUTCFullYear(),
+            target.getUTCMonth(),
+            target.getUTCDate(),
+        ));
+        const end = new Date(start);
+        end.setUTCDate(end.getUTCDate() + 1);
+
+        const filter: Record<string, unknown> = {
+            userId: req.userId,
+            due: { $gte: start, $lt: end },
+        };
+
+        const taskId = req.params.taskId;
+        if (typeof taskId === 'string' && Types.ObjectId.isValid(taskId)) {
+            filter._id = { $ne: new Types.ObjectId(taskId) };
+        }
+
+        const taskCount = await Task.countDocuments(filter);
         if (taskCount >= maxTasks) {
             res.status(403).json(new ApiError(
                 403,
-                `Free plan is limited to ${maxTasks} tasks — upgrade to Pro for unlimited tasks`
+                `Free plan is limited to ${maxTasks} tasks a day. Upgrade to Pro for unlimited tasks.`
             ));
             return;
         }

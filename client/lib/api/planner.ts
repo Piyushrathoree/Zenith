@@ -50,6 +50,7 @@ export interface ServerTask {
   source?: ServerTaskSource;
   externalId?: string;
   link?: string;
+  subtasks?: { id: string; title: string; completed: boolean }[];
 }
 
 export interface CreateTaskPayload {
@@ -62,6 +63,7 @@ export interface CreateTaskPayload {
   source?: ServerTaskSource;
   externalId?: string;
   link?: string;
+  subtasks?: { id: string; title: string; completed: boolean }[];
 }
 
 export interface UpdateTaskPayload {
@@ -75,6 +77,7 @@ export interface UpdateTaskPayload {
   source?: ServerTaskSource;
   externalId?: string;
   link?: string;
+  subtasks?: { id: string; title: string; completed: boolean }[];
 }
 
 export interface ServerChannel {

@@ -1,3 +1,9 @@
+export interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -7,6 +13,7 @@ export interface Task {
   date: string;
   completed: boolean;
   notes?: string;
+  subtasks?: Subtask[];
   source?: 'github' | 'gmail' | 'notion';
   sourceData?: GitHubIssue | GmailMessage | NotionPage;
   externalId?: string;

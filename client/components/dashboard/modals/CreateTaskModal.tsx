@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Calendar, Clock } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { format, addDays, isSameDay } from "date-fns";
+import { format, addDays, isSameDay, parse } from "date-fns";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
   Popover,
@@ -62,12 +62,22 @@ const TIME_SLOTS = [
 ];
 
 export function CreateTaskModal() {
-  const { showCreateModal, setShowCreateModal, addTask } = useApp();
+  const { showCreateModal, createTaskDate, setShowCreateModal, addTask } = useApp();
   const [title, setTitle] = useState("");
   const [tag, setTag] = useState<TaskTag>("work");
   const [date, setDate] = useState<Date>(new Date());
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState("1:00");
+
+  useEffect(() => {
+    if (!showCreateModal) return;
+    const key = createTaskDate ?? format(new Date(), "yyyy-MM-dd");
+    setDate(parse(key, "yyyy-MM-dd", new Date()));
+    setTitle("");
+    setTime("");
+    setTag("work");
+    setDuration("1:00");
+  }, [showCreateModal, createTaskDate]);
 
   const close = () => {
     setTitle("");

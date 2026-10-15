@@ -15,7 +15,7 @@ router.use(authMiddleware);
 router.use(apiLimiter);
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────────
-// gateTaskLimit is applied ONLY on create — reads are always free
+// gateTaskLimit: free users may put at most 4 tasks on a given day
 router.post('/tasks/:channel', gateTaskLimit, createTask);
 router.get('/tasks', getAllTasks);
 // Single-task fetch is mounted under /tasks/id/:taskId (two segments) rather than
@@ -24,7 +24,7 @@ router.get('/tasks', getAllTasks);
 // without reordering or changing the existing channel-listing route's path.
 router.get('/tasks/id/:taskId', getTaskById);
 router.get('/tasks/:channel', getTasksByChannel);
-router.put('/tasks/:taskId', updateTask);
+router.put('/tasks/:taskId', gateTaskLimit, updateTask);
 router.delete('/tasks/:taskId', deleteTask);
 
 // ─── Channels (Projects) ───────────────────────────────────────────────────────

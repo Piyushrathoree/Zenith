@@ -32,10 +32,9 @@
  *
  * 3. date <-> due
  *    The client `date` (yyyy-MM-dd) decides which Kanban day-column a task
- *    renders in. It maps directly to the server `due` field. When reading a
- *    task back, `due` is preferred, falling back to `start`, falling back
- *    to today, so a task always lands in a valid, visible column even if
- *    the server record has neither date set.
+ *    renders in. It maps to the server `due` field as UTC midnight of that
+ *    calendar day so the column does not shift with local timezone. `start`
+ *    is created-at, not the board day, so hydration never falls back to it.
  *
  * 4. title <-> taskDescription, notes <-> notes
  *    Direct 1:1 mapping.
@@ -92,19 +91,27 @@ function completedToStatus(completed: boolean): ServerTaskStatus {
   return completed ? "done" : "todo";
 }
 
-/** Formats a server date (or nothing) into the yyyy-MM-dd string the board uses. */
-function toDateString(value?: string): string {
-  if (!value) return format(new Date(), "yyyy-MM-dd");
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return format(new Date(), "yyyy-MM-dd");
-  return format(parsed, "yyyy-MM-dd");
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
 }
 
-/** Converts a yyyy-MM-dd (or any parseable date string) into an ISO string for the API. */
+/** Formats a server date into the yyyy-MM-dd the board uses, in UTC. */
+function toDateString(value?: string): string {
+  if (!value) return format(new Date(), "yyyy-MM-dd");
+  const dayOnly = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (dayOnly) return `${dayOnly[1]}-${dayOnly[2]}-${dayOnly[3]}`;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return format(new Date(), "yyyy-MM-dd");
+  return `${parsed.getUTCFullYear()}-${pad2(parsed.getUTCMonth() + 1)}-${pad2(parsed.getUTCDate())}`;
+}
+
+/** Converts a yyyy-MM-dd into UTC midnight ISO for the API. */
 function toIsoString(value: string): string | undefined {
+  const dayOnly = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (dayOnly) return `${dayOnly[1]}-${dayOnly[2]}-${dayOnly[3]}T00:00:00.000Z`;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed.toISOString();
+  return `${parsed.getUTCFullYear()}-${pad2(parsed.getUTCMonth() + 1)}-${pad2(parsed.getUTCDate())}T00:00:00.000Z`;
 }
 
 export function mapToClientTask(serverTask: ServerTask): Task {
@@ -116,9 +123,10 @@ export function mapToClientTask(serverTask: ServerTask): Task {
     time: serverTask.startTime,
     duration: serverTask.duration || "1:00",
     tag,
-    date: toDateString(serverTask.due || serverTask.start),
+    date: toDateString(serverTask.due),
     completed: statusToCompleted(serverTask.status),
     notes: serverTask.notes,
+    subtasks: Array.isArray(serverTask.subtasks) ? serverTask.subtasks : [],
     source: serverTask.source,
     externalId: serverTask.externalId,
     link: serverTask.link,
@@ -155,6 +163,7 @@ export function mapToCreateServerTaskPayload(task: Omit<Task, "id">): {
       source: task.source,
       externalId: task.externalId,
       link: task.link,
+      subtasks: task.subtasks ?? [],
     },
   };
 }
@@ -176,6 +185,7 @@ export function mapToUpdateServerTaskPayload(updates: Partial<Task>): UpdateTask
   if (updates.source !== undefined) payload.source = updates.source;
   if (updates.externalId !== undefined) payload.externalId = updates.externalId;
   if (updates.link !== undefined) payload.link = updates.link;
+  if (updates.subtasks !== undefined) payload.subtasks = updates.subtasks;
 
   return payload;
 }
@@ -200,6 +210,7 @@ export function mergeServerTaskUpdate(local: Task, serverTask: ServerTask): Task
     source: mapped.source,
     externalId: mapped.externalId,
     link: mapped.link,
+    subtasks: mapped.subtasks,
   };
 }
 

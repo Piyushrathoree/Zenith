@@ -1,6 +1,5 @@
 import {
   Home,
-  Calendar,
   Target,
   ChevronDown,
   ChevronRight,
@@ -28,22 +27,21 @@ import {
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { WeeklyRitualsPanel } from "./panels/WeeklyRitualsPanel";
+import { SearchNavItem } from "./SearchNavItem";
 import { ZenithLogo } from "@/components/brand/ZenithLogo";
 
 export function LeftSidebar() {
   const router = useRouter();
   const {
-    setShowTodayPanel,
     setShowDailyPlanner,
     setFocusMode,
     setShowWeeklyRituals,
-    showTodayPanel,
     showWeeklyRituals,
     weeklyRitualType,
     focusMode,
     focusMinimized,
     focusRunning,
-    setShowCreateModal,
+    jumpToDate,
     tasks,
   } = useApp();
   const logout = useAuthStore((state) => state.logout);
@@ -61,29 +59,6 @@ export function LeftSidebar() {
     router.replace("/login");
   };
 
-  const navItems = [
-    {
-      icon: Home,
-      label: "Home",
-      active: false,
-      iconClass: "text-brand",
-      onClick: () => router.push("/dashboard"),
-    },
-    {
-      icon: Calendar,
-      label: "Today",
-      active: showTodayPanel,
-      iconClass: "text-tag-personal",
-      onClick: () => setShowTodayPanel(true),
-    },
-    {
-      icon: Target,
-      label: "Focus",
-      active: focusMode || focusMinimized || focusRunning,
-      iconClass: "text-tag-health",
-      onClick: () => setFocusMode(true),
-    },
-  ];
   const dailyRituals = [
     {
       id: "planning",
@@ -174,22 +149,28 @@ export function LeftSidebar() {
 
         {/* Navigation */}
         <nav className="p-2 space-y-1">
-          {navItems.map((item) => (
-            <motion.button
-              key={item.label}
-              onClick={item.onClick}
-              whileHover={{
-                scale: 1.01,
-              }}
-              whileTap={{
-                scale: 0.99,
-              }}
-              className={cn("sidebar-nav-item w-full", item.active && "active")}
-            >
-              <item.icon className={cn("w-5 h-5", item.iconClass)} />
-              <span>{item.label}</span>
-            </motion.button>
-          ))}
+          <motion.button
+            onClick={() => router.push("/dashboard")}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="sidebar-nav-item w-full"
+          >
+            <Home className="w-5 h-5 text-brand" />
+            <span>Home</span>
+          </motion.button>
+          <SearchNavItem />
+          <motion.button
+            onClick={() => setFocusMode(true)}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className={cn(
+              "sidebar-nav-item w-full",
+              (focusMode || focusMinimized || focusRunning) && "active"
+            )}
+          >
+            <Target className="w-5 h-5 text-tag-health" />
+            <span>Focus</span>
+          </motion.button>
         </nav>
 
         {/* Daily Rituals */}
@@ -255,9 +236,7 @@ export function LeftSidebar() {
         <div className="p-3 border-t border-border">
           <button
             type="button"
-            onClick={() =>
-              todayTotal === 0 ? setShowCreateModal(true) : setShowTodayPanel(true)
-            }
+            onClick={() => jumpToDate(todayKey)}
             className="w-full rounded-xl border border-foreground/10 bg-muted/30 p-3 text-left hover:bg-muted"
           >
             <div className="flex items-center justify-between gap-2">

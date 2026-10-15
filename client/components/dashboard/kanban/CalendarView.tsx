@@ -144,7 +144,7 @@ export function CalendarView() {
                         {format(date, "d")}
                       </span>
                       <button
-                        onClick={() => setShowCreateModal(true)}
+                        onClick={() => setShowCreateModal(true, format(date, "yyyy-MM-dd"))}
                         className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
                       >
                         <Plus className="w-3.5 h-3.5 text-muted-foreground" />

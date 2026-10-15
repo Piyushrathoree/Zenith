@@ -5,21 +5,21 @@ import { KanbanBoard } from "@/components/dashboard/kanban/KanbanBoard";
 import { CreateTaskModal } from "@/components/dashboard/modals/CreateTaskModal";
 import { TaskDetailModal } from "@/components/dashboard/modals/TaskDetailModal";
 import { IntegrationDetailModal } from "@/components/dashboard/modals/IntegrationDetailModal";
-import { TodayPanel } from "@/components/dashboard/panels/TodayPanel";
 import { DailyPlannerPanel } from "@/components/dashboard/panels/DailyPlannerPanel";
 import { WeeklyRitualsPanel } from "@/components/dashboard/panels/WeeklyRitualsPanel";
 import { FocusMode } from "@/components/dashboard/FocusMode";
 import { useApp } from "@/context/AppContext";
 import {
   DndContext,
+  DragCancelEvent,
   DragEndEvent,
   DragStartEvent,
-  MouseSensor,
+  PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
   DragOverlay,
-  pointerWithin,
+  closestCorners,
 } from "@dnd-kit/core";
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -115,15 +115,21 @@ export function DashboardLayout() {
     void loadIntegrations();
   }, [loadIntegrations]);
 
-  const mouseSensor = useSensor(MouseSensor, {
-    activationConstraint: { distance: 5 },
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 8 },
   });
 
   const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: { delay: 200, tolerance: 5 },
+    activationConstraint: { delay: 160, tolerance: 8 },
   });
 
-  const sensors = useSensors(mouseSensor, touchSensor);
+  const sensors = useSensors(pointerSensor, touchSensor);
+
+  const clearDrag = useCallback(() => {
+    setActiveTask(null);
+    setActiveDragType(null);
+    setActiveDragData(null);
+  }, []);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
@@ -137,22 +143,36 @@ export function DashboardLayout() {
     }
   }, []);
 
+  const handleDragCancel = useCallback(
+    (_event: DragCancelEvent) => {
+      clearDrag();
+    },
+    [clearDrag]
+  );
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
 
-      setActiveTask(null);
-      setActiveDragType(null);
-      setActiveDragData(null);
+      const activeData = active.data.current;
+      const overData = over?.data.current;
+
+      clearDrag();
 
       if (!over) return;
 
-      const activeData = active.data.current;
-      const overData = over.data.current;
-
-      // Handle task drop onto column
-      if (activeData?.type === "task" && overData?.type === "column") {
-        moveTask(active.id as string, overData.column.id);
+      if (activeData?.type === "task") {
+        const fromDate = activeData.task?.date as string | undefined;
+        const toDate =
+          overData?.type === "column"
+            ? (overData.column.id as string)
+            : overData?.type === "task"
+              ? (overData.task.date as string)
+              : undefined;
+        if (toDate && toDate !== fromDate) {
+          moveTask(active.id as string, toDate);
+        }
+        return;
       }
 
       // Handle GitHub issue drop
@@ -223,15 +243,17 @@ export function DashboardLayout() {
         });
       }
     },
-    [moveTask, addTask]
+    [moveTask, addTask, clearDrag]
   );
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={closestCorners}
       onDragStart={handleDragStart}
+      onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
+      autoScroll={{ threshold: { x: 0.12, y: 0.2 } }}
     >
       <Suspense fallback={null}>
         <IntegrationOAuthReturnHandler />
@@ -250,7 +272,6 @@ export function DashboardLayout() {
         <CreateTaskModal />
         <TaskDetailModal />
         <IntegrationDetailModal />
-        <TodayPanel />
         <DailyPlannerPanel />
         <WeeklyRitualsPanel
           isOpen={showWeeklyRituals}
@@ -261,12 +282,7 @@ export function DashboardLayout() {
       </div>
 
       {/* Drag Overlay for integration cards */}
-      <DragOverlay
-        dropAnimation={{
-          duration: 200,
-          easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
-        }}
-      >
+      <DragOverlay dropAnimation={{ duration: 180, easing: "ease-out" }}>
         {activeDragType === "task" && activeTask && (
           <div className="task-card task-card-dragging h-32 w-[304px]">
             <div className="flex h-full flex-col justify-between">

@@ -12,9 +12,10 @@ export function useDraggableScroll<T extends HTMLElement>() {
         // Ignore if clicking on interactive elements or if it's not the left button
         const target = e.target as HTMLElement;
         if (
-            target.closest('button') ||
-            target.closest('a') ||
-            target.closest('[data-no-drag]') ||
+            target.closest("button") ||
+            target.closest("a") ||
+            target.closest("[data-no-drag]") ||
+            target.closest(".task-card") ||
             e.button !== 0
         ) {
             return;

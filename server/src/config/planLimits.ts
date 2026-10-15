@@ -6,7 +6,7 @@
  *
  * How it's used:
  *   - rateLimit     → max API requests per minute (enforced by rateLimit.middleware.ts)
- *   - maxTasks      → enforced by gateTaskLimit() in featureGate.middleware.ts
+ *   - maxTasks      → max tasks on a single calendar day (gateTaskLimit)
  *   - plannerDays   → 1 = today + tomorrow only (enforced by gatePlannerRange())
  *   - integrations  → enforced by gateIntegrations()
  */

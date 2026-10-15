@@ -11,8 +11,21 @@ import { ApiResponse } from '../../utils/ApiResponse.ts';
 
 const VALID_TASK_SOURCES = ['github', 'gmail', 'notion'];
 
+function normalizeSubtasks(raw: unknown): { id: string; title: string; completed: boolean }[] | null {
+    if (raw === undefined) return null;
+    if (!Array.isArray(raw)) return null;
+    return raw
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+        .map((item, index) => ({
+            id: typeof item.id === 'string' && item.id ? item.id : `sub-${index}-${Date.now()}`,
+            title: typeof item.title === 'string' ? item.title.trim() : '',
+            completed: Boolean(item.completed),
+        }))
+        .filter((item) => item.title.length > 0);
+}
+
 export const createTask = async (req: Request, res: Response): Promise<void> => {
-    const { taskDescription, due, status, notes, duration, startTime, source, externalId, link } = req.body;
+    const { taskDescription, due, status, notes, duration, startTime, source, externalId, link, subtasks } = req.body;
     const { channel } = req.params;
 
     if (!taskDescription) {
@@ -36,6 +49,7 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
         source,
         externalId,
         link,
+        subtasks: normalizeSubtasks(subtasks) ?? [],
         userId: req.userId,
         channel: channel || 'work',
     });
@@ -73,18 +87,40 @@ export const getTaskById = async (req: Request, res: Response): Promise<void> =>
 
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
     const { taskId } = req.params;
-    const { status, taskDescription, notes, due, channel, duration, startTime, source, externalId, link } = req.body;
+    const { status, taskDescription, notes, due, channel, duration, startTime, source, externalId, link, subtasks } = req.body;
 
     if (source !== undefined && !VALID_TASK_SOURCES.includes(source)) {
         res.status(400).json(new ApiError(400, 'source must be one of github, gmail, or notion'));
         return;
     }
 
-    const task = await Task.findOneAndUpdate(
-        { _id: taskId, userId: req.userId },
-        { status, taskDescription, notes, due, channel, duration, startTime, source, externalId, link },
-        { new: true, runValidators: true }
-    );
+    const $set: Record<string, unknown> = {};
+    if (status !== undefined) $set.status = status;
+    if (taskDescription !== undefined) $set.taskDescription = taskDescription;
+    if (notes !== undefined) $set.notes = notes;
+    if (due !== undefined) $set.due = due;
+    if (channel !== undefined) $set.channel = channel;
+    if (duration !== undefined) $set.duration = duration;
+    if (startTime !== undefined) $set.startTime = startTime;
+    if (source !== undefined) $set.source = source;
+    if (externalId !== undefined) $set.externalId = externalId;
+    if (link !== undefined) $set.link = link;
+    if (subtasks !== undefined) {
+        const normalized = normalizeSubtasks(subtasks);
+        if (normalized === null) {
+            res.status(400).json(new ApiError(400, 'subtasks must be an array'));
+            return;
+        }
+        $set.subtasks = normalized;
+    }
+
+    const task = Object.keys($set).length === 0
+        ? await Task.findOne({ _id: taskId, userId: req.userId })
+        : await Task.findOneAndUpdate(
+            { _id: taskId, userId: req.userId },
+            { $set },
+            { new: true, runValidators: true }
+        );
 
     if (!task) {
         res.status(404).json(new ApiError(404, 'Task not found'));
